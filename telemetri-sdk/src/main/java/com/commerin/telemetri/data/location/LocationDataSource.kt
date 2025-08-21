@@ -18,7 +18,16 @@ class LocationDataSource(context: Context) {
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 for (loc in result.locations) {
-                    trySend(LocationRaw(loc.latitude, loc.longitude, loc.speed, loc.time))
+                    trySend(LocationRaw(
+                        latitude = loc.latitude,
+                        longitude = loc.longitude,
+                        altitude = if (loc.hasAltitude()) loc.altitude else null,
+                        speed = if (loc.hasSpeed()) loc.speed else null,
+                        accuracy = if (loc.hasAccuracy()) loc.accuracy else null,
+                        bearing = if (loc.hasBearing()) loc.bearing else null,
+                        provider = loc.provider ?: "fused",
+                        timestamp = loc.time
+                    ))
                 }
             }
         }

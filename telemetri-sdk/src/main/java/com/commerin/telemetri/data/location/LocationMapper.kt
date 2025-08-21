@@ -7,10 +7,12 @@ object LocationMapper {
         return LocationData(
             latitude = raw.latitude,
             longitude = raw.longitude,
-            speed = raw.speed, // Convert non-null Float to nullable Float
-            timestamp = raw.timestamp,
-            accuracy = null, // Not available in LocationRaw
-            bearing = null   // Not available in LocationRaw
+            altitude = raw.altitude,
+            speed = raw.speed,
+            accuracy = raw.accuracy,
+            bearing = raw.bearing,
+            provider = raw.provider ?: "unknown",
+            timestamp = raw.timestamp
         )
     }
 }

@@ -8,6 +8,7 @@ import android.hardware.SensorManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.commerin.telemetri.domain.model.SensorData
+import com.commerin.telemetri.domain.model.SensorType
 
 class SensorService(private val context: Context) {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -21,8 +22,8 @@ class SensorService(private val context: Context) {
                     x = event.values[0],
                     y = event.values[1],
                     z = event.values[2],
-                    sensorType = TODO(),
-                    timestamp = TODO()
+                    sensorType = SensorType.ACCELEROMETER,
+                    timestamp = System.currentTimeMillis()
                 )
             }
         }

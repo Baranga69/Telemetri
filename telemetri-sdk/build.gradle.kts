@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("com.google.dagger.hilt.android") version "2.48"
+    alias(libs.plugins.hilt.android)
     id("kotlin-kapt")
 }
 
@@ -32,6 +32,10 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
+    hilt {
+        enableAggregatingTask = false
+    }
 }
 
 dependencies {
@@ -60,11 +64,14 @@ dependencies {
     // Location Services
     implementation(libs.play.services.location)
 
-    // Dependency Injection (Hilt)
-    implementation("com.google.dagger:hilt-android:2.48")
-    kapt("com.google.dagger:hilt-android-compiler:2.48")
-    implementation("androidx.hilt:hilt-work:1.0.0")
-    kapt("androidx.hilt:hilt-compiler:1.0.0")
+    // JavaPoet dependency to fix Hilt compilation issues
+    implementation("com.squareup:javapoet:1.13.0")
+
+    // Dependency Injection (Hilt) - updated to version 2.55
+    implementation("com.google.dagger:hilt-android:2.55")
+    kapt("com.google.dagger:hilt-android-compiler:2.55")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    kapt("androidx.hilt:hilt-compiler:1.2.0")
 
     // JSON Processing
     implementation("com.google.code.gson:gson:2.10.1")

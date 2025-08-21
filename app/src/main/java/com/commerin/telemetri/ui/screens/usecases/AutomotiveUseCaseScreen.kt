@@ -4,21 +4,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.commerin.telemetri.ui.components.DataRow
 import com.commerin.telemetri.ui.components.TelemetryDataCard
+import com.commerin.telemetri.ui.components.TransparentAppBar
 import com.commerin.telemetri.ui.components.charts.SignalStrengthGauge
 import com.commerin.telemetri.ui.components.charts.NetworkSpeedGauge
+import com.commerin.telemetri.ui.components.charts.VehicleSpeedometerWidget
+import com.commerin.telemetri.ui.components.charts.SpeedUnit
 import com.commerin.telemetri.ui.viewmodels.AutomotiveViewModel
 import java.util.Locale
 
@@ -35,149 +36,92 @@ fun AutomotiveUseCaseScreen(
     val networkData by viewModel.networkData.observeAsState()
     val performanceData by viewModel.performanceData.observeAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    // Speed recording state
+    var isSpeedRecording by remember { mutableStateOf(false) }
+    var speedUnit by remember { mutableStateOf(SpeedUnit.KPH) }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Header with back button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackPressed) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Automotive Telemetry",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // Transparent app bar
+        TransparentAppBar(
+            title = "Automotive Telemetry",
+            onBackPressed = onBackPressed
+        )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Control Panel
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "High-Precision Collection",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isCollecting) "Active - Collecting data every second" else "Stopped",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCollecting) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            if (isCollecting) {
-                                viewModel.stopCollection()
-                            } else {
-                                viewModel.startAutomotiveCollection()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCollecting) Color(0xFFF44336) else MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.PlayArrow,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isCollecting) "Stop" else "Start")
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Telemetry Data Display
+        // Main content with padding for transparent app bar
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 120.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Network Signal Monitoring Section
+            // Control Panel
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(20.dp)
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.NetworkCheck,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Vehicle Connectivity Status",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Signal Strength Gauge
-                            SignalStrengthGauge(
-                                signalStrength = networkData?.signalStrength ?: -75,
-                                modifier = Modifier.weight(1f),
-                                title = "Signal Strength"
-                            )
+                            Column {
+                                Text(
+                                    text = "Automotive Collection",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (isCollecting) "High-precision vehicle tracking active" else "Stopped",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isCollecting)
+                                        MaterialTheme.colorScheme.tertiary else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
 
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            // Network Speed Gauge
-                            NetworkSpeedGauge(
-                                speedBps = networkData?.connectionSpeed ?: 15_000_000L, // 15 Mbps default
-                                modifier = Modifier.weight(1f),
-                                title = "Data Speed"
-                            )
-                        }
-
-                        // Network type indicator
-                        networkData?.let { data ->
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
+                            Button(
+                                onClick = {
+                                    if (isCollecting) {
+                                        viewModel.stopCollection()
+                                    } else {
+                                        viewModel.startAutomotiveCollection()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isCollecting)
+                                        MaterialTheme.colorScheme.errorContainer else
+                                        MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = if (isCollecting)
+                                        MaterialTheme.colorScheme.onErrorContainer else
+                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.tertiary
-                                    )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(
+                                        imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "${data.networkType.name} Connected",
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onTertiary
+                                        text = if (isCollecting) "Stop" else "Start",
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
@@ -186,80 +130,158 @@ fun AutomotiveUseCaseScreen(
                 }
             }
 
-            // Location Data Card
-            locationData?.let { location ->
-                item {
-                    TelemetryDataCard(
-                        title = "GPS Location",
-                        icon = Icons.Default.LocationOn,
-                        color = Color(0xFF4CAF50).copy(alpha = 0.1f),
-                        isActive = true
-                    ) {
-                        DataRow("Latitude", String.format(Locale.getDefault(), "%.6f", location.latitude))
-                        DataRow("Longitude", String.format(Locale.getDefault(), "%.6f", location.longitude))
-                        DataRow("Altitude", "${(location.altitude ?: 0.0).toInt()} m")
-                        DataRow("Speed", "${(location.speed ?: 0f).toInt()} km/h")
-                        DataRow("Accuracy", "${(location.accuracy ?: 0f).toInt()} m")
-                        DataRow("Bearing", "${(location.bearing ?: 0f).toInt()}°")
-                    }
+            // Vehicle Speedometer Widget
+            item {
+                VehicleSpeedometerWidget(
+                    currentSpeed = locationData?.speed ?: 0f,
+                    isRecording = isSpeedRecording,
+                    speedUnit = speedUnit,
+                    onToggleRecording = {
+                        isSpeedRecording = !isSpeedRecording
+                        if (isSpeedRecording && !isCollecting) {
+                            viewModel.startAutomotiveCollection()
+                        }
+                    },
+                    onToggleUnit = {
+                        speedUnit = if (speedUnit == SpeedUnit.KPH) SpeedUnit.MPH else SpeedUnit.KPH
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Location Data
+            item {
+                TelemetryDataCard(
+                    title = "Location Tracking",
+                    icon = Icons.Default.LocationOn,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                ) {
+                    locationData?.let { location ->
+                        DataRow("Latitude", String.format(Locale.US, "%.6f", location.latitude))
+                        DataRow("Longitude", String.format(Locale.US, "%.6f", location.longitude))
+                        DataRow("Speed", "${location.speed?.let { String.format(Locale.US, "%.1f", it) } ?: "N/A"} m/s")
+                        DataRow("Accuracy", "${location.accuracy?.let { String.format(Locale.US, "%.1f", it) } ?: "N/A"} m")
+                        DataRow("Provider", location.provider)
+                    } ?: Text(
+                        "No location data available",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            // Sensor Data Card
-            sensorData?.let { sensors ->
-                if (sensors.isNotEmpty()) {
-                    val latestSensor = sensors.first() // Show the most recent sensor data
-                    item {
-                        TelemetryDataCard(
-                            title = "Motion Sensors",
-                            icon = Icons.Default.Sensors,
-                            color = Color(0xFF2196F3).copy(alpha = 0.1f),
-                            isActive = true
+            // Network Performance Gauges
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Text(
+                            text = "Network Performance",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 20.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            DataRow("Acceleration X", String.format(Locale.getDefault(), "%.2f m/s²", latestSensor.x))
-                            DataRow("Acceleration Y", String.format(Locale.getDefault(), "%.2f m/s²", latestSensor.y))
-                            DataRow("Acceleration Z", String.format(Locale.getDefault(), "%.2f m/s²", latestSensor.z))
-                            DataRow("Sensor Type", latestSensor.sensorType.name)
-                            DataRow("Accuracy", "${latestSensor.accuracy}")
-                            DataRow("Active Sensors", "${sensors.size}")
+                            SignalStrengthGauge(
+                                signalStrength = networkData?.signalStrength ?: -75,
+                                modifier = Modifier.weight(1f),
+                                title = "Signal Strength"
+                            )
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            NetworkSpeedGauge(
+                                speedBps = networkData?.connectionSpeed ?: 10_000_000L,
+                                modifier = Modifier.weight(1f),
+                                title = "Connection Speed"
+                            )
                         }
                     }
                 }
             }
 
-            // Audio Environment Card
-            audioData?.let { audio ->
-                item {
-                    TelemetryDataCard(
-                        title = "Audio Environment",
-                        icon = Icons.Default.GraphicEq,
-                        color = Color(0xFFFF9800).copy(alpha = 0.1f),
-                        isActive = true
-                    ) {
-                        DataRow("Sound Level", "${audio.decibels.toInt()} dB")
-                        DataRow("Frequency", "${audio.dominantFrequency.toInt()} Hz")
-                        DataRow("Amplitude", String.format(Locale.getDefault(), "%.2f", audio.amplitude))
-                        DataRow("Classification", audio.soundClassification.name)
-                        DataRow("Voice Detected", if (audio.isVoiceDetected) "Yes" else "No")
-                        DataRow("Noise Level", audio.noiseLevelCategory)
-                    }
+            // Sensor Data
+            item {
+                TelemetryDataCard(
+                    title = "Sensor Data",
+                    icon = Icons.Default.Sensors,
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                ) {
+                    sensorData?.let { sensors ->
+                        Text(
+                            "Active Sensors: ${sensors.size}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        sensors.take(3).forEach { sensor ->
+                            DataRow(
+                                sensor.sensorType.name,
+                                "X: ${String.format(Locale.US, "%.2f", sensor.x)}"
+                            )
+                        }
+                        if (sensors.size > 3) {
+                            Text(
+                                "+ ${sensors.size - 3} more sensors",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } ?: Text(
+                        "No sensor data available",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            // Performance Data Card
-            performanceData?.let { performance ->
-                item {
-                    TelemetryDataCard(
-                        title = "Device Performance",
-                        icon = Icons.Default.Speed,
-                        color = Color(0xFF9C27B0).copy(alpha = 0.1f),
-                        isActive = true
-                    ) {
-                        DataRow("CPU Usage", "${performance.cpuUsage.toInt()}%")
-                        DataRow("Memory Usage", "${(performance.memoryUsage.usedRam / 1024 / 1024).toInt()} MB")
-                        DataRow("Battery Level", "${performance.batteryInfo.level}%")
-                        DataRow("Battery Temp", "${performance.batteryInfo.temperature.toInt()}°C")
-                    }
+            // Audio Data
+            item {
+                TelemetryDataCard(
+                    title = "Audio Environment",
+                    icon = Icons.Default.Mic,
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                ) {
+                    audioData?.let { audio ->
+                        DataRow("Sound Level", "${String.format(Locale.US, "%.1f", audio.decibels)} dB")
+                        DataRow("Dominant Frequency", "${String.format(Locale.US, "%.0f", audio.dominantFrequency)} Hz")
+                        DataRow("Classification", audio.soundClassification.name)
+                        DataRow("Voice Detected", if (audio.isVoiceDetected) "Yes" else "No")
+                    } ?: Text(
+                        "No audio data available",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Performance Data
+            item {
+                TelemetryDataCard(
+                    title = "System Performance",
+                    icon = Icons.Default.Speed,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                ) {
+                    performanceData?.let { performance ->
+                        DataRow("CPU Usage", "${String.format(Locale.US, "%.1f", performance.cpuUsage)}%")
+                        DataRow("Memory", "${performance.memoryUsage.appMemoryUsage / 1024 / 1024} MB")
+                        DataRow("Battery", "${performance.batteryInfo.level}%")
+                        DataRow("Temperature", "${String.format(Locale.US, "%.1f", performance.batteryInfo.temperature)}°C")
+                    } ?: Text(
+                        "No performance data available",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

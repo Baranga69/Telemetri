@@ -2,6 +2,7 @@ package com.commerin.telemetri.ui.screens.usecases
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -60,12 +61,14 @@ fun BatterySaverUseCaseScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = when {
-                        battery.level > 75 -> Color(0xFF4CAF50).copy(alpha = 0.1f)
-                        battery.level > 50 -> Color(0xFFFF9800).copy(alpha = 0.1f)
-                        battery.level > 25 -> Color(0xFFFF9800).copy(alpha = 0.1f)
-                        else -> Color(0xFFF44336).copy(alpha = 0.1f)
+                        battery.level > 75 -> Color(0xFFE8F5E8).copy(alpha = 0.9f) // Soft pastel green
+                        battery.level > 50 -> Color(0xFFFFF8E1).copy(alpha = 0.9f) // Soft pastel amber
+                        battery.level > 25 -> Color(0xFFFFF3E0).copy(alpha = 0.9f) // Soft pastel orange
+                        else -> Color(0xFFFFEBEE).copy(alpha = 0.9f) // Soft pastel red
                     }
-                )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -81,24 +84,30 @@ fun BatterySaverUseCaseScreen(
                         },
                         contentDescription = null,
                         tint = when {
-                            battery.level > 75 -> Color(0xFF4CAF50)
-                            battery.level > 50 -> Color(0xFFFF9800)
-                            battery.level > 25 -> Color(0xFFFF9800)
-                            else -> Color(0xFFF44336)
+                            battery.level > 75 -> Color(0xFF388E3C)
+                            battery.level > 50 -> Color(0xFFF57C00) // Deep amber
+                            battery.level > 25 -> Color(0xFFE65100)
+                            else -> Color(0xFFD32F2F)
                         },
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
                             text = "Battery: ${battery.level}%",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                battery.level > 75 -> Color(0xFF388E3C)
+                                battery.level > 50 -> Color(0xFFF57C00)
+                                battery.level > 25 -> Color(0xFFE65100)
+                                else -> Color(0xFFD32F2F)
+                            }
                         )
                         Text(
-                            text = "${battery.chargingState.name} • ${String.format(Locale.getDefault(), "%.1f", battery.temperature)}°C • Est. ${battery.estimatedTimeRemaining}min",
+                            text = "${battery.chargingState.name} • ${String.format(Locale.US, "%.1f", battery.temperature)}°C",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF6B7280)
                         )
                     }
                 }
@@ -110,7 +119,11 @@ fun BatterySaverUseCaseScreen(
         // Control Panel
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFF9800).copy(alpha = 0.1f))
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFFFF8E1).copy(alpha = 0.8f) // Soft pastel amber
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -122,14 +135,15 @@ fun BatterySaverUseCaseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Power-Efficient Collection",
+                            text = "Power Optimized Telemetry",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE65100) // Deep orange/amber for text
                         )
                         Text(
-                            text = if (isCollecting) "Adaptive sampling active" else "Stopped",
+                            text = if (isCollecting) "Battery-friendly data collection" else "Stopped",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCollecting) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isCollecting) Color(0xFFF57C00) else Color(0xFF6B7280)
                         )
                     }
 
@@ -142,15 +156,17 @@ fun BatterySaverUseCaseScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCollecting) Color(0xFF757575) else Color(0xFFFF9800)
-                        )
+                            containerColor = if (isCollecting) Color(0xFFFFCDD2) else Color(0xFFFFE0B2), // Pastel red/amber
+                            contentColor = if (isCollecting) Color(0xFFD32F2F) else Color(0xFFE65100)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
-                            imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.BatteryChargingFull,
+                            imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.BatteryStd,
                             contentDescription = null
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isCollecting) "Stop" else "Start Efficient")
+                        Text(if (isCollecting) "Stop" else "Start Eco Mode")
                     }
                 }
             }

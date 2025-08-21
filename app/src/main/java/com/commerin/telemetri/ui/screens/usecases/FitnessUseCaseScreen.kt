@@ -57,7 +57,10 @@ fun FitnessUseCaseScreen(
         // Control Panel
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFE8F5E8).copy(alpha = 0.8f) // Soft pastel green
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -71,12 +74,13 @@ fun FitnessUseCaseScreen(
                         Text(
                             text = "Activity Tracking",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D3A) // Deeper green for text
                         )
                         Text(
                             text = if (isCollecting) "Monitoring movement and biometrics" else "Stopped",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCollecting) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isCollecting) Color(0xFF4CAF50) else Color(0xFF6B7280)
                         )
                     }
 
@@ -89,7 +93,8 @@ fun FitnessUseCaseScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCollecting) Color(0xFFF44336) else Color(0xFF4CAF50)
+                            containerColor = if (isCollecting) Color(0xFFFFCDD2) else Color(0xFFC8E6C9), // Pastel red/green
+                            contentColor = if (isCollecting) Color(0xFFD32F2F) else Color(0xFF388E3C)
                         )
                     ) {
                         Icon(

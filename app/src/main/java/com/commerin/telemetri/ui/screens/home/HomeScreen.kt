@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.commerin.telemetri.ui.components.TransparentAppBar
+import com.commerin.telemetri.ui.theme.*
 
 data class UseCase(
     val id: String,
@@ -37,7 +39,7 @@ fun HomeScreen(
             title = "Network Telemetry Demo",
             description = "Real-time network monitoring with signal strength and speed gauges",
             icon = Icons.Default.NetworkCheck,
-            color = Color(0xFF673AB7),
+            color = NetworkDataColor,
             features = listOf(
                 "Signal strength visualization",
                 "Connection speed monitoring",
@@ -52,7 +54,7 @@ fun HomeScreen(
             title = "Automotive Telemetry",
             description = "Comprehensive vehicle and driving analytics with high-precision data collection",
             icon = Icons.Default.DirectionsCar,
-            color = Color(0xFF1976D2),
+            color = SensorDataColor,
             features = listOf(
                 "High-frequency sensor collection",
                 "Precise GPS tracking (1-second intervals)",
@@ -67,7 +69,7 @@ fun HomeScreen(
             title = "Fitness & Health Tracking",
             description = "Advanced movement analysis and health monitoring for fitness applications",
             icon = Icons.Default.FitnessCenter,
-            color = Color(0xFF4CAF50),
+            color = MotionDataColor,
             features = listOf(
                 "Activity recognition",
                 "Step counting and frequency",
@@ -82,7 +84,7 @@ fun HomeScreen(
             title = "Environmental Monitoring",
             description = "Environmental context awareness through multi-sensor data fusion",
             icon = Icons.Default.Eco,
-            color = Color(0xFF4CAF50),
+            color = LocationDataColor,
             features = listOf(
                 "Ambient sound analysis",
                 "Environmental sensor readings",
@@ -97,7 +99,7 @@ fun HomeScreen(
             title = "Security & Surveillance",
             description = "Maximum data collection for security and monitoring applications",
             icon = Icons.Default.Security,
-            color = Color(0xFFF44336),
+            color = PerformanceDataColor,
             features = listOf(
                 "Ultra-high frequency sampling",
                 "Continuous monitoring",
@@ -112,7 +114,7 @@ fun HomeScreen(
             title = "Battery Optimized",
             description = "Intelligent telemetry collection with maximum power efficiency",
             icon = Icons.Default.BatteryChargingFull,
-            color = Color(0xFFFF9800),
+            color = AudioDataColor,
             features = listOf(
                 "Adaptive sampling rates",
                 "Power-efficient collection",
@@ -124,56 +126,22 @@ fun HomeScreen(
         )
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Header
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Analytics,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Telemetri SDK Demo",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Explore comprehensive telemetry data collection across different use cases",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "Choose a Use Case",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+        // Transparent app bar
+        TransparentAppBar(
+            title = "Telemetri SDK Demo"
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // Main content with padding for transparent app bar
         LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 120.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Header
+            // Use cases grid
             items(useCases) { useCase ->
                 UseCaseCard(
                     useCase = useCase,
@@ -184,33 +152,39 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UseCaseCard(
     useCase: UseCase,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp)
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Card(
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = useCase.color.copy(alpha = 0.1f))
+                    colors = CardDefaults.cardColors(
+                        containerColor = useCase.color.copy(alpha = 0.15f)
+                    )
                 ) {
                     Icon(
                         imageVector = useCase.icon,
                         contentDescription = null,
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(48.dp)
                             .padding(12.dp),
                         tint = useCase.color
                     )
@@ -218,26 +192,20 @@ private fun UseCaseCard(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = useCase.title,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = useCase.description,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -245,17 +213,19 @@ private fun UseCaseCard(
             // Features
             Text(
                 text = "Key Features:",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
             useCase.features.take(3).forEach { feature ->
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 2.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Check,
+                        imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = useCase.color
@@ -263,53 +233,42 @@ private fun UseCaseCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = feature,
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // Telemetry types
-            Text(
-                text = "Telemetry Data:",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 useCase.telemetryTypes.take(3).forEach { type ->
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = useCase.color.copy(alpha = 0.1f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = useCase.color.copy(alpha = 0.1f)
                     ) {
                         Text(
                             text = type,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = useCase.color
+                            color = useCase.color,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
                 if (useCase.telemetryTypes.size > 3) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = "+${useCase.telemetryTypes.size - 3}",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }

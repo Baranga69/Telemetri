@@ -57,7 +57,11 @@ fun EnvironmentalUseCaseScreen(
         // Control Panel
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f))
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFE3F2FD).copy(alpha = 0.8f) // Soft pastel blue
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -71,12 +75,13 @@ fun EnvironmentalUseCaseScreen(
                         Text(
                             text = "Environmental Sensing",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1565C0) // Deep blue for text
                         )
                         Text(
                             text = if (isCollecting) "Monitoring environment conditions" else "Stopped",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCollecting) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isCollecting) Color(0xFF1976D2) else Color(0xFF6B7280)
                         )
                     }
 
@@ -89,8 +94,10 @@ fun EnvironmentalUseCaseScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCollecting) Color(0xFFF44336) else Color(0xFF4CAF50)
-                        )
+                            containerColor = if (isCollecting) Color(0xFFFFCDD2) else Color(0xFFBBDEFB), // Pastel red/blue
+                            contentColor = if (isCollecting) Color(0xFFD32F2F) else Color(0xFF1976D2)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.Eco,

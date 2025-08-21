@@ -1,6 +1,7 @@
 package com.commerin.telemetri.ui.screens.usecases
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11,6 +12,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,7 +48,7 @@ fun SecurityUseCaseScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Security Monitoring",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -58,12 +60,14 @@ fun SecurityUseCaseScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = when (alertLevel) {
-                    "Critical" -> Color(0xFFF44336).copy(alpha = 0.1f)
-                    "High" -> Color(0xFFFF9800).copy(alpha = 0.1f)
-                    "Medium" -> Color(0xFFFFEB3B).copy(alpha = 0.1f)
-                    else -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                    "Critical" -> Color(0xFFFFEBEE).copy(alpha = 0.9f) // Soft pastel red
+                    "High" -> Color(0xFFFFF3E0).copy(alpha = 0.9f) // Soft pastel orange
+                    "Medium" -> Color(0xFFFFFDE7).copy(alpha = 0.9f) // Soft pastel yellow
+                    else -> Color(0xFFF3E5F5).copy(alpha = 0.9f) // Soft pastel purple
                 }
-            )
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -78,24 +82,30 @@ fun SecurityUseCaseScreen(
                     },
                     contentDescription = null,
                     tint = when (alertLevel) {
-                        "Critical" -> Color(0xFFF44336)
+                        "Critical" -> Color(0xFFD32F2F)
                         "High" -> Color(0xFFFF9800)
-                        "Medium" -> Color(0xFFFFEB3B)
-                        else -> Color(0xFF4CAF50)
+                        "Medium" -> Color(0xFFFBC02D)
+                        else -> Color(0xFF7B1FA2) // Deep purple
                     },
                     modifier = Modifier.size(32.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
-                        text = "Security Alert Level: $alertLevel",
+                        text = "Security Status: $alertLevel",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = when (alertLevel) {
+                            "Critical" -> Color(0xFFD32F2F)
+                            "High" -> Color(0xFFE65100)
+                            "Medium" -> Color(0xFFF57F17)
+                            else -> Color(0xFF7B1FA2)
+                        }
                     )
                     Text(
                         text = "Data Quality: $dataQuality",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color(0xFF6B7280)
                     )
                 }
             }
@@ -106,7 +116,11 @@ fun SecurityUseCaseScreen(
         // Control Panel
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF44336).copy(alpha = 0.1f))
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF3E5F5).copy(alpha = 0.8f) // Soft pastel purple
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -118,14 +132,15 @@ fun SecurityUseCaseScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Maximum Security Mode",
+                            text = "Security Monitoring",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF7B1FA2) // Deep purple for text
                         )
                         Text(
-                            text = if (isCollecting) "Ultra-high frequency monitoring active" else "Stopped",
+                            text = if (isCollecting) "Active security scanning" else "Stopped",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCollecting) Color(0xFFF44336) else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isCollecting) Color(0xFF9C27B0) else Color(0xFF6B7280)
                         )
                     }
 
@@ -138,15 +153,17 @@ fun SecurityUseCaseScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCollecting) Color(0xFF757575) else Color(0xFFF44336)
-                        )
+                            containerColor = if (isCollecting) Color(0xFFFFCDD2) else Color(0xFFE1BEE7), // Pastel red/purple
+                            contentColor = if (isCollecting) Color(0xFFD32F2F) else Color(0xFF7B1FA2)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             imageVector = if (isCollecting) Icons.Default.Stop else Icons.Default.Security,
                             contentDescription = null
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isCollecting) "Stop" else "Secure Monitor")
+                        Text(if (isCollecting) "Stop" else "Start Scan")
                     }
                 }
             }
@@ -161,13 +178,35 @@ fun SecurityUseCaseScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp) // Optional: Add spacing between items
                 ) {
-                    SecurityStat("Data Points", "${stats.totalDataPoints}", Icons.Default.DataUsage)
-                    SecurityStat("Sensors", "${stats.activeSensors}", Icons.Default.Sensors)
-                    SecurityStat("Uptime", "${stats.uptimeMinutes}m", Icons.Default.Timer)
-                    SecurityStat("Events", "${stats.securityEvents}", Icons.Default.Event)
+                    SecurityStat(
+                        "Data Points",
+                        "${stats.totalDataPoints}",
+                        Icons.Default.DataUsage,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SecurityStat(
+                        "Sensors",
+                        "${stats.activeSensors}",
+                        Icons.Default.Sensors,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SecurityStat(
+                        "Uptime",
+                        "${stats.uptimeMinutes}m",
+                        Icons.Default.Timer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SecurityStat(
+                        "Events",
+                        "${stats.securityEvents}",
+                        Icons.Default.Event,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
@@ -329,7 +368,8 @@ fun SecurityUseCaseScreen(
 private fun SecurityStat(
     label: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: ImageVector,
+    modifier: Modifier = Modifier
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally

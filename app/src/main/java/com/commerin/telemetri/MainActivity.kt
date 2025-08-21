@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.commerin.telemetri.ui.navigation.TelemetriNavigation
 import com.commerin.telemetri.ui.theme.TelemetriTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -19,6 +20,9 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Install splash screen before calling super.onCreate()
+        installSplashScreen()
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {

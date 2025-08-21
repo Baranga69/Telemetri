@@ -99,6 +99,9 @@ dependencies {
     // Location services
     implementation("com.google.android.gms:play-services-location:21.0.1")
 
+    // Splash Screen API
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
     // Charts and data visualization - Custom implementation using Compose Canvas
     // implementation("com.github.PhilJay:MPAndroidChart:v3.1.0") // Removed - replaced with custom charts
 

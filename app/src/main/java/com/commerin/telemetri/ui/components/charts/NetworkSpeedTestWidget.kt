@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.*
 
-enum class NetworkTestType {
+enum class AppNetworkTestType {
     DOWNLOAD, UPLOAD, PING
 }
 
@@ -32,7 +32,7 @@ data class NetworkSpeedData(
     val uploadSpeed: Float = 0f,   // Mbps
     val ping: Float = 0f,          // ms
     val isTestRunning: Boolean = false,
-    val currentTestType: NetworkTestType? = null,
+    val currentTestType: AppNetworkTestType? = null,
     val progress: Float = 0f
 )
 
@@ -210,13 +210,13 @@ fun NetworkSpeedTestWidget(
                         .fillMaxWidth()
                 ) {
                     val currentSpeed = when (networkData.currentTestType) {
-                        NetworkTestType.DOWNLOAD -> animatedDownloadSpeed
-                        NetworkTestType.UPLOAD -> animatedUploadSpeed
+                        AppNetworkTestType.DOWNLOAD -> animatedDownloadSpeed
+                        AppNetworkTestType.UPLOAD -> animatedUploadSpeed
                         else -> maxOf(animatedDownloadSpeed, animatedUploadSpeed)
                     }
 
                     Text(
-                        text = if (networkData.currentTestType == NetworkTestType.PING) {
+                        text = if (networkData.currentTestType == AppNetworkTestType.PING) {
                             "${animatedPing.toInt()}"
                         } else {
                             "${currentSpeed.toInt()}"
@@ -227,7 +227,7 @@ fun NetworkSpeedTestWidget(
                         color = if (networkData.isTestRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (networkData.currentTestType == NetworkTestType.PING) "ms" else "Mbps",
+                        text = if (networkData.currentTestType == AppNetworkTestType.PING) "ms" else "Mbps",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -248,7 +248,7 @@ fun NetworkSpeedTestWidget(
                     value = "${animatedDownloadSpeed.toInt()}",
                     unit = "Mbps",
                     icon = Icons.Default.NetworkCheck,
-                    isActive = networkData.currentTestType == NetworkTestType.DOWNLOAD
+                    isActive = networkData.currentTestType == AppNetworkTestType.DOWNLOAD
                 )
 
                 NetworkMetricCard(
@@ -256,7 +256,7 @@ fun NetworkSpeedTestWidget(
                     value = "${animatedUploadSpeed.toInt()}",
                     unit = "Mbps",
                     icon = Icons.Default.NetworkCheck,
-                    isActive = networkData.currentTestType == NetworkTestType.UPLOAD
+                    isActive = networkData.currentTestType == AppNetworkTestType.UPLOAD
                 )
 
                 NetworkMetricCard(
@@ -264,7 +264,7 @@ fun NetworkSpeedTestWidget(
                     value = "${animatedPing.toInt()}",
                     unit = "ms",
                     icon = Icons.Default.NetworkCheck,
-                    isActive = networkData.currentTestType == NetworkTestType.PING
+                    isActive = networkData.currentTestType == AppNetworkTestType.PING
                 )
             }
 
@@ -358,7 +358,7 @@ private fun DrawScope.drawNetworkSpeedGauge(
     downloadSpeed: Float,
     uploadSpeed: Float,
     isTestRunning: Boolean,
-    currentTestType: NetworkTestType?,
+    currentTestType: AppNetworkTestType?,
     waveOffset: Float,
     progress: Float
 ) {
@@ -425,9 +425,9 @@ private fun DrawScope.drawNetworkSpeedGauge(
 
             drawCircle(
                 color = when (currentTestType) {
-                    NetworkTestType.DOWNLOAD -> Color(0xFF2196F3).copy(alpha = alpha)
-                    NetworkTestType.UPLOAD -> Color(0xFFFF9800).copy(alpha = alpha)
-                    NetworkTestType.PING -> Color(0xFF4CAF50).copy(alpha = alpha)
+                    AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3).copy(alpha = alpha)
+                    AppNetworkTestType.UPLOAD -> Color(0xFFFF9800).copy(alpha = alpha)
+                    AppNetworkTestType.PING -> Color(0xFF4CAF50).copy(alpha = alpha)
                     else -> Color(0xFF9C27B0).copy(alpha = alpha)
                 },
                 radius = animatedRadius,
@@ -441,9 +441,9 @@ private fun DrawScope.drawNetworkSpeedGauge(
     drawCircle(
         color = if (isTestRunning) {
             when (currentTestType) {
-                NetworkTestType.DOWNLOAD -> Color(0xFF2196F3)
-                NetworkTestType.UPLOAD -> Color(0xFFFF9800)
-                NetworkTestType.PING -> Color(0xFF4CAF50)
+                AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3)
+                AppNetworkTestType.UPLOAD -> Color(0xFFFF9800)
+                AppNetworkTestType.PING -> Color(0xFF4CAF50)
                 else -> Color(0xFF9C27B0)
             }
         } else Color.Gray,

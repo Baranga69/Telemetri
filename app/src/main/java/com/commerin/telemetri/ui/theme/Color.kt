@@ -10,46 +10,16 @@ val Purple40 = Color(0xFF6650a4)
 val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
-// Muted Pastel Colors for Light Theme
-val MutedBlue = Color(0xFF8FA6CB)        // Soft blue
-val MutedGreen = Color(0xFF9BB68C)       // Sage green
-val MutedPurple = Color(0xFFB19FD9)      // Lavender
-val MutedPink = Color(0xFFE8A6B8)        // Dusty rose
-val MutedOrange = Color(0xFFE6B88A)      // Peach
-val MutedTeal = Color(0xFF8DC5C5)        // Soft teal
-val MutedYellow = Color(0xFFF0D98C)      // Butter yellow
+// Telemetry specific colors
+val TelemetryBlue = Color(0xFF2196F3)
+val TelemetryGreen = Color(0xFF4CAF50)
+val TelemetryOrange = Color(0xFFFF9800)
+val TelemetryRed = Color(0xFFF44336)
 
-// Muted Dark Colors for Dark Theme
-val DarkMutedBlue = Color(0xFF4A5568)
-val DarkMutedGreen = Color(0xFF48673A)
-val DarkMutedPurple = Color(0xFF6B5B95)
-val DarkMutedPink = Color(0xFF8B5A6B)
-val DarkMutedOrange = Color(0xFF8B6F47)
-val DarkMutedTeal = Color(0xFF4A5D5D)
-
-// Background and Surface Colors
-val LightPastelBackground = Color(0xFFFAFBFC)  // Very light blue-gray
-val LightPastelSurface = Color(0xFFFFFFFF)     // Pure white
-val LightPastelSurfaceVariant = Color(0xFFF5F7FA) // Light blue-gray
-
-val DarkPastelBackground = Color(0xFF0F1419)    // Very dark blue-gray
-val DarkPastelSurface = Color(0xFF1A202C)       // Dark blue-gray
-val DarkPastelSurfaceVariant = Color(0xFF2D3748) // Medium dark blue-gray
-
-// Telemetry-specific muted colors
-val TelemetryPrimary = MutedBlue
-val TelemetrySecondary = MutedTeal
-val TelemetryAccent = MutedOrange
-val TelemetrySuccess = MutedGreen
-val TelemetryWarning = MutedYellow
-val TelemetryError = MutedPink
-val TelemetryBackground = LightPastelBackground
-val TelemetrySurface = LightPastelSurface
-
-// Data visualization muted pastel colors
-val SensorDataColor = MutedBlue
-val LocationDataColor = MutedGreen
-val AudioDataColor = MutedPurple
-val NetworkDataColor = MutedOrange
-val PerformanceDataColor = MutedPink
-val MotionDataColor = MutedTeal
+// Data type specific colors for charts and UI
+val NetworkDataColor = Color(0xFF2196F3)
+val SensorDataColor = Color(0xFF4CAF50)
+val MotionDataColor = Color(0xFFFF9800)
+val LocationDataColor = Color(0xFF9C27B0)
+val PerformanceDataColor = Color(0xFFF44336)
+val AudioDataColor = Color(0xFF00BCD4)

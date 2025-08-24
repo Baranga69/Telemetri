@@ -6,31 +6,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commerin.telemetri.core.SpeedTestResult
 import com.commerin.telemetri.core.TelemetriManager
-import com.commerin.telemetri.core.TelemetryConfig
 import com.commerin.telemetri.domain.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class AutomotiveViewModel @Inject constructor(
+class NetworkViewModel @Inject constructor(
     private val telemetriManager: TelemetriManager
 ) : ViewModel() {
 
     private val _isCollecting = MutableLiveData<Boolean>(false)
     val isCollecting: LiveData<Boolean> = _isCollecting
 
-    private val _telemetryData = MutableLiveData<ComprehensiveTelemetryEvent>()
-    val telemetryData: LiveData<ComprehensiveTelemetryEvent> = _telemetryData
-
     private val _locationData = MutableLiveData<LocationData>()
     val locationData: LiveData<LocationData> = _locationData
-
-    private val _sensorData = MutableLiveData<List<SensorData>>()
-    val sensorData: LiveData<List<SensorData>> = _sensorData
-
-    private val _audioData = MutableLiveData<AudioTelemetryData>()
-    val audioData: LiveData<AudioTelemetryData> = _audioData
 
     private val _networkData = MutableLiveData<NetworkTelemetryData>()
     val networkData: LiveData<NetworkTelemetryData> = _networkData
@@ -38,24 +28,27 @@ class AutomotiveViewModel @Inject constructor(
     private val _speedTestResult = MutableLiveData<SpeedTestResult>()
     val speedTestResult: LiveData<SpeedTestResult> = _speedTestResult
 
-    private val _performanceData = MutableLiveData<PerformanceTelemetryData>()
-    val performanceData: LiveData<PerformanceTelemetryData> = _performanceData
-
-    private val _motionData = MutableLiveData<MotionData>()
-    val motionData: LiveData<MotionData> = _motionData
+    private val _deviceStateData = MutableLiveData<DeviceStateData>()
+    val deviceStateData: LiveData<DeviceStateData> = _deviceStateData
 
     init {
         observeTelemetryData()
     }
 
-    fun startAutomotiveCollection() {
+    /**
+     * Start network diagnostics collection using optimized network-only configuration
+     */
+    fun startNetworkDiagnostics() {
         viewModelScope.launch {
-            val automotiveConfig = TelemetriManager.ConfigPresets.automotiveUseCase()
-            telemetriManager.startTelemetryCollection(automotiveConfig)
+            val networkConfig = TelemetriManager.ConfigPresets.networkDiagnosticsUseCase()
+            telemetriManager.startTelemetryCollection(networkConfig)
             _isCollecting.value = true
         }
     }
 
+    /**
+     * Stop network diagnostics collection
+     */
     fun stopCollection() {
         viewModelScope.launch {
             telemetriManager.stopTelemetryCollection()
@@ -64,20 +57,10 @@ class AutomotiveViewModel @Inject constructor(
     }
 
     private fun observeTelemetryData() {
-        telemetriManager.comprehensiveTelemetry.observeForever { telemetry ->
-            _telemetryData.value = telemetry
-        }
+        // Only observe data streams that are enabled in network diagnostics config
 
         telemetriManager.locationData.observeForever { location ->
             _locationData.value = location
-        }
-
-        telemetriManager.sensorData.observeForever { sensors ->
-            _sensorData.value = sensors
-        }
-
-        telemetriManager.audioTelemetry.observeForever { audio ->
-            _audioData.value = audio
         }
 
         telemetriManager.networkTelemetry.observeForever { network ->
@@ -88,12 +71,11 @@ class AutomotiveViewModel @Inject constructor(
             _speedTestResult.value = speedTest
         }
 
-        telemetriManager.performanceTelemetry.observeForever { performance ->
-            _performanceData.value = performance
-        }
-
-        telemetriManager.motionAnalysis.observeForever { motion ->
-            _motionData.value = motion
+        // Basic device state for context
+        telemetriManager.comprehensiveTelemetry.observeForever { telemetry ->
+            telemetry.deviceState?.let { deviceState ->
+                _deviceStateData.value = deviceState
+            }
         }
     }
 

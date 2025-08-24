@@ -28,6 +28,7 @@ class TelemetriManager private constructor(private val context: Context) {
     private val motionAnalysisEngine = MotionAnalysisEngine(context)
     private val audioTelemetryService = AudioTelemetryService(context)
     private val networkTelemetryService = NetworkTelemetryService(context)
+    private val networkSpeedTestService = NetworkSpeedTestService()
     private val performanceTelemetryService = PerformanceTelemetryService(context)
     private val deviceStateService = DeviceStateService(context)
 
@@ -51,6 +52,9 @@ class TelemetriManager private constructor(private val context: Context) {
 
     private val _networkTelemetry = MutableLiveData<NetworkTelemetryData>()
     val networkTelemetry: LiveData<NetworkTelemetryData> = _networkTelemetry
+
+    private val _speedTestResult = MutableLiveData<SpeedTestResult>()
+    val speedTestResult: LiveData<SpeedTestResult> = _speedTestResult
 
     private val _performanceTelemetry = MutableLiveData<PerformanceTelemetryData>()
     val performanceTelemetry: LiveData<PerformanceTelemetryData> = _performanceTelemetry
@@ -137,12 +141,14 @@ class TelemetriManager private constructor(private val context: Context) {
 
         Log.d(TAG, "Stopping comprehensive telemetry collection")
 
-        // Stop all services
+        // Stop all services regardless of config to ensure clean state
         sensorService.stop()
         locationService.stopLocationUpdates()
         audioTelemetryService.stopAudioTelemetry()
         networkTelemetryService.stopNetworkMonitoring()
+        networkSpeedTestService.stopSpeedTest()
         performanceTelemetryService.stopPerformanceMonitoring()
+        motionAnalysisEngine.stopAnalysis()
         deviceStateService.stopMonitoring()
 
         // Clear data buffers
@@ -170,91 +176,138 @@ class TelemetriManager private constructor(private val context: Context) {
     fun getCurrentConfig(): TelemetryConfig = telemetryConfig
 
     /**
-     * Create use case specific configurations
+     * Create use case specific configurations optimized for minimal permissions
      */
     object ConfigPresets {
+        /**
+         * Automotive use case - optimized for vehicle speed and navigation
+         * Only uses: GPS, Motion sensors (accelerometer/gyroscope), Basic device state
+         * Excludes: Microphone, Network monitoring, Performance monitoring
+         */
         fun automotiveUseCase(): TelemetryConfig {
             return TelemetryConfig(
-                enableSensorCollection = true,
-                enableLocationTracking = true,
-                enableAudioTelemetry = true,
-                enableNetworkTelemetry = true,
-                enablePerformanceMonitoring = true,
-                enableMotionAnalysis = true,
-                enableDeviceStateMonitoring = true,
-                sensorSamplingRate = SensorSamplingRate.HIGH,
-                locationUpdateInterval = 1000L, // 1 second for driving
-                audioAnalysisEnabled = true,
-                networkQualityMonitoring = true,
-                batteryOptimizationEnabled = false // Full data for automotive
+                enableSensorCollection = true,        // Need accelerometer/gyroscope for motion
+                enableLocationTracking = true,        // Essential for GPS speed and navigation
+                enableAudioTelemetry = false,         // NOT needed for speed - removes microphone permission
+                enableNetworkTelemetry = false,       // NOT needed for basic speed tracking
+                enablePerformanceMonitoring = false,  // NOT needed for speed
+                enableMotionAnalysis = true,          // Essential for sensor-based speed calculation
+                enableDeviceStateMonitoring = true,   // Basic device state for context
+                sensorSamplingRate = SensorSamplingRate.HIGH, // High precision for accurate speed
+                locationUpdateInterval = 1000L,       // 1 second for responsive speed updates
+                audioAnalysisEnabled = false,         // No audio analysis needed
+                networkQualityMonitoring = false,     // No network monitoring needed
+                batteryOptimizationEnabled = true     // Optimize battery for longer trips
             )
         }
 
+        /**
+         * Fitness tracking use case - optimized for activity detection and health metrics
+         * Only uses: Motion sensors, GPS, Device state
+         * Excludes: Microphone, Network monitoring
+         */
         fun fitnessTrackingUseCase(): TelemetryConfig {
             return TelemetryConfig(
-                enableSensorCollection = true,
-                enableLocationTracking = true,
-                enableAudioTelemetry = false,
-                enableNetworkTelemetry = false,
-                enablePerformanceMonitoring = true,
-                enableMotionAnalysis = true,
-                enableDeviceStateMonitoring = true,
-                sensorSamplingRate = SensorSamplingRate.HIGH,
-                locationUpdateInterval = 5000L, // 5 seconds
-                audioAnalysisEnabled = false,
-                networkQualityMonitoring = false,
-                batteryOptimizationEnabled = true
+                enableSensorCollection = true,        // Essential for step counting and activity detection
+                enableLocationTracking = true,        // Essential for distance and route tracking
+                enableAudioTelemetry = false,         // NOT needed for fitness - removes microphone permission
+                enableNetworkTelemetry = false,       // NOT needed for basic fitness tracking
+                enablePerformanceMonitoring = true,   // Useful for battery life during workouts
+                enableMotionAnalysis = true,          // Essential for activity type detection
+                enableDeviceStateMonitoring = true,   // Important for battery monitoring during workouts
+                sensorSamplingRate = SensorSamplingRate.HIGH, // High precision for accurate step counting
+                locationUpdateInterval = 5000L,       // 5 seconds - balance accuracy vs battery
+                audioAnalysisEnabled = false,         // No audio analysis needed
+                networkQualityMonitoring = false,     // No network monitoring needed
+                batteryOptimizationEnabled = true     // Important for long workouts
             )
         }
 
+        /**
+         * Environmental monitoring use case - optimized for ambient data collection
+         * Uses: Environmental sensors, Audio for noise monitoring, GPS for location context
+         * Excludes: Motion analysis (not needed for stationary monitoring)
+         */
         fun environmentalMonitoringUseCase(): TelemetryConfig {
             return TelemetryConfig(
-                enableSensorCollection = true,
-                enableLocationTracking = true,
-                enableAudioTelemetry = true,
-                enableNetworkTelemetry = true,
-                enablePerformanceMonitoring = false,
-                enableMotionAnalysis = false,
-                enableDeviceStateMonitoring = false,
-                sensorSamplingRate = SensorSamplingRate.MEDIUM,
-                locationUpdateInterval = 30000L, // 30 seconds
-                audioAnalysisEnabled = true,
-                networkQualityMonitoring = true,
-                batteryOptimizationEnabled = true
+                enableSensorCollection = true,        // Essential for environmental sensors (temp, light, pressure)
+                enableLocationTracking = true,        // Important for location context of environmental data
+                enableAudioTelemetry = true,          // Essential for noise level monitoring
+                enableNetworkTelemetry = true,        // Useful for data upload and connectivity context
+                enablePerformanceMonitoring = false,  // NOT needed for environmental monitoring
+                enableMotionAnalysis = false,         // NOT needed - usually stationary monitoring
+                enableDeviceStateMonitoring = false,  // NOT critical for environmental data
+                sensorSamplingRate = SensorSamplingRate.MEDIUM, // Medium precision sufficient
+                locationUpdateInterval = 30000L,      // 30 seconds - slow updates for stationary monitoring
+                audioAnalysisEnabled = true,          // Essential for noise classification
+                networkQualityMonitoring = true,      // Useful for data transmission quality
+                batteryOptimizationEnabled = true     // Important for long-term monitoring
             )
         }
 
+        /**
+         * Security monitoring use case - comprehensive monitoring for security purposes
+         * Uses: All available sensors for maximum security coverage
+         * Note: This is the only use case that requires all permissions
+         */
         fun securityMonitoringUseCase(): TelemetryConfig {
             return TelemetryConfig(
-                enableSensorCollection = true,
-                enableLocationTracking = true,
-                enableAudioTelemetry = true,
-                enableNetworkTelemetry = true,
-                enablePerformanceMonitoring = true,
-                enableMotionAnalysis = true,
-                enableDeviceStateMonitoring = true,
-                sensorSamplingRate = SensorSamplingRate.ULTRA_HIGH,
-                locationUpdateInterval = 500L, // 0.5 seconds
-                audioAnalysisEnabled = true,
-                networkQualityMonitoring = true,
-                batteryOptimizationEnabled = false // Maximum data collection
+                enableSensorCollection = true,        // Essential for detecting device tampering
+                enableLocationTracking = true,        // Essential for theft detection and tracking
+                enableAudioTelemetry = true,          // Important for detecting unauthorized access/sounds
+                enableNetworkTelemetry = true,        // Important for detecting network intrusions
+                enablePerformanceMonitoring = true,   // Important for detecting malicious software
+                enableMotionAnalysis = true,          // Essential for detecting theft/unauthorized movement
+                enableDeviceStateMonitoring = true,   // Essential for comprehensive security monitoring
+                sensorSamplingRate = SensorSamplingRate.ULTRA_HIGH, // Maximum precision for security
+                locationUpdateInterval = 500L,        // 0.5 seconds - rapid updates for security
+                audioAnalysisEnabled = true,          // Important for security event detection
+                networkQualityMonitoring = true,      // Important for detecting network attacks
+                batteryOptimizationEnabled = false    // Security takes priority over battery
             )
         }
 
+        /**
+         * Battery saver use case - minimal monitoring for maximum battery life
+         * Only uses: Basic sensors for essential monitoring
+         * Excludes: GPS, Microphone, Network monitoring, Performance monitoring
+         */
         fun batterySaverUseCase(): TelemetryConfig {
             return TelemetryConfig(
-                enableSensorCollection = true,
-                enableLocationTracking = false,
-                enableAudioTelemetry = false,
-                enableNetworkTelemetry = false,
-                enablePerformanceMonitoring = false,
-                enableMotionAnalysis = false,
-                enableDeviceStateMonitoring = true,
-                sensorSamplingRate = SensorSamplingRate.LOW,
-                locationUpdateInterval = 300000L, // 5 minutes
-                audioAnalysisEnabled = false,
-                networkQualityMonitoring = false,
-                batteryOptimizationEnabled = true
+                enableSensorCollection = true,        // Minimal sensors only
+                enableLocationTracking = false,       // GPS disabled to save battery
+                enableAudioTelemetry = false,         // Microphone disabled to save battery
+                enableNetworkTelemetry = false,       // Network monitoring disabled
+                enablePerformanceMonitoring = false,  // Performance monitoring disabled
+                enableMotionAnalysis = false,         // Motion analysis disabled
+                enableDeviceStateMonitoring = true,   // Only basic device state for battery monitoring
+                sensorSamplingRate = SensorSamplingRate.LOW, // Lowest sampling rate
+                locationUpdateInterval = 300000L,     // 5 minutes - very infrequent updates
+                audioAnalysisEnabled = false,         // No audio analysis
+                networkQualityMonitoring = false,     // No network monitoring
+                batteryOptimizationEnabled = true     // Maximum battery optimization
+            )
+        }
+
+        /**
+         * Network diagnostics use case - optimized for network performance testing
+         * Only uses: Network monitoring, basic device state, minimal location for context
+         * Excludes: Motion sensors, Microphone, Performance monitoring
+         */
+        fun networkDiagnosticsUseCase(): TelemetryConfig {
+            return TelemetryConfig(
+                enableSensorCollection = false,       // NOT needed for network diagnostics
+                enableLocationTracking = true,        // Minimal location for network context
+                enableAudioTelemetry = false,         // NOT needed for network testing
+                enableNetworkTelemetry = true,        // Essential for network diagnostics
+                enablePerformanceMonitoring = false,  // NOT needed for network testing
+                enableMotionAnalysis = false,         // NOT needed for network testing
+                enableDeviceStateMonitoring = true,   // Basic device state for context
+                sensorSamplingRate = SensorSamplingRate.LOW, // Minimal sensor usage
+                locationUpdateInterval = 60000L,      // 1 minute - just for general location context
+                audioAnalysisEnabled = false,         // No audio analysis needed
+                networkQualityMonitoring = true,      // Essential for network diagnostics
+                batteryOptimizationEnabled = true     // Optimize battery during network tests
             )
         }
     }
@@ -292,6 +345,11 @@ class TelemetriManager private constructor(private val context: Context) {
             lastNetworkData = networkData
             _networkTelemetry.postValue(networkData)
             aggregateComprehensiveTelemetry()
+        }
+
+        // Observe speed test results
+        networkSpeedTestService.speedTestResult.observeForever { speedTestResult ->
+            _speedTestResult.postValue(speedTestResult)
         }
 
         // Observe performance telemetry
@@ -499,6 +557,15 @@ class TelemetriManager private constructor(private val context: Context) {
         deviceStateService.startMonitoring()
     }
 
+    // Network speed test methods
+    fun startNetworkSpeedTest() {
+        networkSpeedTestService.startSpeedTest()
+    }
+
+    fun stopNetworkSpeedTest() {
+        networkSpeedTestService.stopSpeedTest()
+    }
+
     // Utility methods
     private fun generateSessionId(): String {
         return "session_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt(1000, 9999)}"
@@ -512,6 +579,7 @@ class TelemetriManager private constructor(private val context: Context) {
         stopTelemetryCollection()
         audioTelemetryService.cleanup()
         networkTelemetryService.cleanup()
+        networkSpeedTestService.cleanup()
         performanceTelemetryService.cleanup()
         scope.cancel()
     }

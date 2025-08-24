@@ -24,7 +24,16 @@ data class MotionData(
     val confidence: Float,               // Confidence in activity detection
     val stepCount: Int,                  // Current step count
     val stepFrequency: Float,            // Steps per minute
+    val vehicleSpeed: Float,             // Calculated vehicle speed (m/s) using sensor fusion
     val timestamp: Long,
+
+    // Individual sensor readings for detailed analysis
+    val accelerationX: Float = 0f,       // X-axis acceleration
+    val accelerationY: Float = 0f,       // Y-axis acceleration
+    val accelerationZ: Float = 0f,       // Z-axis acceleration
+    val gyroscopeX: Float = 0f,          // X-axis rotation rate
+    val gyroscopeY: Float = 0f,          // Y-axis rotation rate
+    val gyroscopeZ: Float = 0f,          // Z-axis rotation rate
 
     // Legacy properties for backward compatibility
     val acceleration: Float? = accelerationMagnitude,  // m/s² magnitude

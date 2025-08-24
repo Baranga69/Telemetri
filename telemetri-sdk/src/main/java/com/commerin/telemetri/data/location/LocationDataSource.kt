@@ -2,6 +2,7 @@ package com.commerin.telemetri.data.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Looper
 import com.google.android.gms.location.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -32,7 +33,8 @@ class LocationDataSource(context: Context) {
             }
         }
 
-        fusedLocationClient.requestLocationUpdates(request, callback, null)
+        // Fix: Use Looper.getMainLooper() instead of null to prevent NullPointerException
+        fusedLocationClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
 
         awaitClose {
             fusedLocationClient.removeLocationUpdates(callback)

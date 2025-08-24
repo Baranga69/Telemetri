@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commerin.telemetri.domain.model.ActivityType
 import com.commerin.telemetri.ui.components.DataRow
 import com.commerin.telemetri.ui.components.TelemetryDataCard
 import com.commerin.telemetri.ui.components.TransparentAppBar
@@ -35,10 +36,30 @@ fun AutomotiveUseCaseScreen(
     val audioData by viewModel.audioData.observeAsState()
     val networkData by viewModel.networkData.observeAsState()
     val performanceData by viewModel.performanceData.observeAsState()
+    val motionData by viewModel.motionData.observeAsState()
 
     // Speed recording state
     var isSpeedRecording by remember { mutableStateOf(false) }
     var speedUnit by remember { mutableStateOf(SpeedUnit.KPH) }
+
+    // Enhanced speed calculation using sensor fusion
+    val currentSpeed = remember(motionData, locationData) {
+        val motion = motionData
+        val location = locationData
+
+        when {
+            // Prioritize sensor-based speed when in vehicle and data is available
+            motion?.activityType == ActivityType.IN_VEHICLE && motion.vehicleSpeed > 0f -> {
+                motion.vehicleSpeed
+            }
+            // Fall back to GPS speed if sensor data unavailable
+            location?.speed != null && location.speed!! > 0f -> {
+                location.speed!!
+            }
+            // Default to 0 if no reliable speed data
+            else -> 0f
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -133,7 +154,7 @@ fun AutomotiveUseCaseScreen(
             // Vehicle Speedometer Widget
             item {
                 VehicleSpeedometerWidget(
-                    currentSpeed = locationData?.speed ?: 0f,
+                    currentSpeed = currentSpeed,
                     isRecording = isSpeedRecording,
                     speedUnit = speedUnit,
                     onToggleRecording = {

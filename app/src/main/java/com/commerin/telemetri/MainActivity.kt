@@ -1,47 +1,179 @@
 package com.commerin.telemetri
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import com.commerin.telemetri.ui.navigation.TelemetriNavigation
+import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.commerin.telemetri.domain.model.PermissionState
+import com.commerin.telemetri.domain.model.TelemetryPermissions
+import com.commerin.telemetri.ui.screens.home.HomeScreen
+import com.commerin.telemetri.ui.screens.permissions.PermissionsScreen
+import com.commerin.telemetri.ui.screens.usecases.*
 import com.commerin.telemetri.ui.theme.TelemetriTheme
+import com.commerin.telemetri.utils.PermissionUtils
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        // Install splash screen before calling super.onCreate()
-        installSplashScreen()
+class MainActivity : FragmentActivity() {
 
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
             TelemetriTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TelemetriNavigation()
+                    TelemetryApp()
                 }
             }
         }
     }
 }
 
-@Preview(showBackground = true)
 @Composable
-fun DefaultPreview() {
-    TelemetriTheme {
-        TelemetriNavigation()
+private fun TelemetryApp() {
+    val context = LocalContext.current
+    val navController = rememberNavController()
+
+    // Check permission status on each composition
+    var hasRequiredPermissions by remember { mutableStateOf(false) }
+    var isCheckingPermissions by remember { mutableStateOf(true) }
+
+    // Check permissions when the app starts and whenever permission state changes
+    LaunchedEffect(Unit) {
+        hasRequiredPermissions = checkEssentialPermissions(context)
+        isCheckingPermissions = false
+    }
+
+    when {
+        isCheckingPermissions -> {
+            // Show loading while checking permissions
+            LoadingScreen()
+        }
+        !hasRequiredPermissions -> {
+            // Show permissions screen if essential permissions are missing
+            PermissionsScreen(
+                onPermissionsGranted = {
+                    hasRequiredPermissions = true
+                }
+            )
+        }
+        else -> {
+            // Show main app content when permissions are granted
+            NavHost(
+                navController = navController,
+                startDestination = "home"
+            ) {
+                composable("home") {
+                    HomeScreen(
+                        onNavigateToUseCase = { useCaseId ->
+                            navController.navigate("usecase/$useCaseId")
+                        }
+                    )
+                }
+
+                composable("usecase/network_demo") {
+                    NetworkTelemetryDemoScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
+                composable("usecase/automotive") {
+                    AutomotiveUseCaseScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
+                composable("usecase/fitness") {
+                    FitnessUseCaseScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
+                composable("usecase/environmental") {
+                    EnvironmentalUseCaseScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
+                composable("usecase/security") {
+                    SecurityUseCaseScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
+                composable("usecase/battery_saver") {
+                    BatterySaverUseCaseScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingScreen() {
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            // Simple loading indicator
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+    }
+}
+
+/**
+ * Check if essential permissions for basic telemetry functionality are granted
+ * You can customize this logic based on your minimum requirements
+ */
+private fun checkEssentialPermissions(context: android.content.Context): Boolean {
+    // For basic functionality, require at least location permissions
+    // You can adjust this based on your SDK's minimum requirements
+    val essentialPermissions = listOf(
+        TelemetryPermissions.LOCATION_FINE,
+        TelemetryPermissions.LOCATION_COARSE
+    )
+
+    return essentialPermissions.all { permission ->
+        PermissionUtils.getPermissionState(context, permission) is PermissionState.Granted
     }
 }

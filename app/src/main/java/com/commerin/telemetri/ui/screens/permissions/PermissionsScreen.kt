@@ -1,12 +1,8 @@
 package com.commerin.telemetri.ui.screens.permissions
 
-import android.Manifest
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,313 +12,461 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.google.accompanist.permissions.*
+import androidx.fragment.app.FragmentActivity
+import com.commerin.telemetri.core.AudioTelemetryService
+import com.commerin.telemetri.core.TelemetriManager
+import com.commerin.telemetri.domain.model.PermissionState
+import com.commerin.telemetri.domain.model.PermissionStateCallback
+import com.commerin.telemetri.domain.model.TelemetryPermissionException
+import com.commerin.telemetri.domain.model.TelemetryPermissions
+import com.commerin.telemetri.helpers.createTelemetryPermissionHelper
+import com.commerin.telemetri.utils.PermissionUtils
 
-data class PermissionInfo(
+data class TelemetryPermissionInfo(
     val permission: String,
     val title: String,
     val description: String,
     val icon: ImageVector,
     val color: Color,
-    val importance: PermissionImportance
+    val category: String,
+    val importance: PermissionImportance,
+    val useCases: List<String>
+)
+
+data class UseCaseInfo(
+    val name: String,
+    val description: String,
+    val requiredPermissions: List<String>,
+    val icon: ImageVector,
+    val color: Color
 )
 
 enum class PermissionImportance {
     CRITICAL, HIGH, MEDIUM, LOW
 }
 
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun PermissionsScreen(
     onPermissionsGranted: () -> Unit
 ) {
-    val permissionsToRequest = listOf(
-        PermissionInfo(
-            permission = Manifest.permission.ACCESS_FINE_LOCATION,
-            title = "Precise Location",
-            description = "Required for accurate GPS tracking, automotive telemetry, and location-based analytics. Enables precise positioning for navigation and movement analysis.",
-            icon = Icons.Default.LocationOn,
-            color = Color(0xFF4CAF50),
-            importance = PermissionImportance.CRITICAL
-        ),
-        PermissionInfo(
-            permission = Manifest.permission.ACCESS_COARSE_LOCATION,
-            title = "Approximate Location",
-            description = "Provides general location information for environmental monitoring and network-based positioning. Used as fallback when precise location is unavailable.",
-            icon = Icons.Default.MyLocation,
-            color = Color(0xFF2196F3),
-            importance = PermissionImportance.HIGH
-        ),
-        PermissionInfo(
-            permission = Manifest.permission.RECORD_AUDIO,
-            title = "Microphone Access",
-            description = "Enables environmental sound analysis, noise level monitoring, and voice detection for context-aware telemetry. Used for acoustic environmental profiling.",
-            icon = Icons.Default.Mic,
-            color = Color(0xFF9C27B0),
-            importance = PermissionImportance.HIGH
-        ),
-        PermissionInfo(
-            permission = Manifest.permission.READ_PHONE_STATE,
-            title = "Phone State",
-            description = "Allows reading cellular network information including signal strength, network type (4G/5G), and carrier details for connectivity analytics.",
-            icon = Icons.Default.SignalCellularAlt,
-            color = Color(0xFFFF9800),
-            importance = PermissionImportance.MEDIUM
-        ),
-        PermissionInfo(
-            permission = Manifest.permission.CAMERA,
-            title = "Camera Access",
-            description = "Enables visual context analysis, light estimation, and motion detection through computer vision for enhanced environmental awareness.",
-            icon = Icons.Default.CameraAlt,
-            color = Color(0xFFE91E63),
-            importance = PermissionImportance.MEDIUM
-        ),
-        PermissionInfo(
-            permission = Manifest.permission.BODY_SENSORS,
-            title = "Body Sensors",
-            description = "Access to heart rate sensors and other biometric data for health and fitness tracking use cases. Enables comprehensive wellness monitoring.",
-            icon = Icons.Default.Favorite,
-            color = Color(0xFFF44336),
-            importance = PermissionImportance.MEDIUM
-        ),
-        PermissionInfo(
-            permission = "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
-            title = "Activity Recognition",
-            description = "Automatically detects user activities like walking, running, cycling, or being in a vehicle. Essential for fitness tracking and automotive use cases.",
-            icon = Icons.Default.DirectionsRun,
-            color = Color(0xFF00BCD4),
-            importance = PermissionImportance.HIGH
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity ?: return
+
+    // State management
+    var permissionStates by remember { mutableStateOf<Map<String, PermissionState>>(emptyMap()) }
+    var telemetryServices by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var showError by remember { mutableStateOf<String?>(null) }
+    var selectedUseCase by remember { mutableStateOf<String?>(null) }
+
+    // Telemetry services
+    val audioService = remember { AudioTelemetryService(context) }
+    val telemetriManager = remember { TelemetriManager.getInstance(context) }
+
+    // Permission helper with integrated callbacks
+    val permissionHelper = remember {
+        activity.createTelemetryPermissionHelper(object : PermissionStateCallback {
+            override fun onAudioPermissionStateChanged(state: PermissionState, permission: String) {
+                permissionStates = permissionStates + (permission to state)
+                handleAudioPermissionChange(state, audioService) { error ->
+                    showError = error
+                }
+            }
+
+            override fun onLocationPermissionStateChanged(state: PermissionState, permission: String) {
+                permissionStates = permissionStates + (permission to state)
+                handleLocationPermissionChange(state)
+            }
+
+            override fun onConnectivityPermissionStateChanged(state: PermissionState, permission: String) {
+                permissionStates = permissionStates + (permission to state)
+                handleConnectivityPermissionChange(state)
+            }
+
+            override fun onDeviceStatePermissionChanged(state: PermissionState, permission: String) {
+                permissionStates = permissionStates + (permission to state)
+                handleDeviceStatePermissionChange(state)
+            }
+        })
+    }
+
+    // Initialize permission states
+    LaunchedEffect(Unit) {
+        permissionStates = TelemetryPermissions.getAllRequiredPermissions().associateWith { permission ->
+            PermissionUtils.getPermissionState(context, permission)
+        }
+        telemetryServices = mapOf(
+            "Audio Telemetry" to permissionHelper.areAudioPermissionsGranted(),
+            "Location Telemetry" to permissionHelper.areLocationPermissionsGranted(),
+            "Connectivity Telemetry" to permissionHelper.areConnectivityPermissionsGranted(),
+            "Device State Telemetry" to permissionHelper.areDeviceStatePermissionsGranted()
         )
-    )
 
-    val multiplePermissionsState = rememberMultiplePermissionsState(
-        permissions = permissionsToRequest.map { it.permission }
-    )
-
-    var currentStep by remember { mutableIntStateOf(0) }
-    val pagerState = rememberPagerState(pageCount = { permissionsToRequest.size + 2 }) // +2 for intro and summary
-
-    LaunchedEffect(multiplePermissionsState.allPermissionsGranted) {
-        if (multiplePermissionsState.allPermissionsGranted) {
+        // Check if all permissions are granted
+        if (permissionHelper.areAllPermissionsGranted()) {
             onPermissionsGranted()
         }
     }
 
+    // Update telemetry services when permission states change
+    LaunchedEffect(permissionStates) {
+        telemetryServices = mapOf(
+            "Audio Telemetry" to permissionHelper.areAudioPermissionsGranted(),
+            "Location Telemetry" to permissionHelper.areLocationPermissionsGranted(),
+            "Connectivity Telemetry" to permissionHelper.areConnectivityPermissionsGranted(),
+            "Device State Telemetry" to permissionHelper.areDeviceStatePermissionsGranted()
+        )
+    }
+
+    // Use cases from TelemetriManager
+    val telemetryUseCases = listOf(
+        UseCaseInfo(
+            name = "Automotive Telemetry",
+            description = "Vehicle speed tracking, navigation, and motion analysis using GPS and motion sensors",
+            requiredPermissions = listOf(TelemetryPermissions.LOCATION_FINE, TelemetryPermissions.LOCATION_COARSE),
+            icon = Icons.Default.DirectionsCar,
+            color = Color(0xFF4CAF50)
+        ),
+        UseCaseInfo(
+            name = "Fitness Tracking",
+            description = "Activity detection, step counting, and health metrics using motion sensors and GPS",
+            requiredPermissions = listOf(TelemetryPermissions.LOCATION_FINE, TelemetryPermissions.LOCATION_COARSE),
+            icon = Icons.Default.FitnessCenter,
+            color = Color(0xFF2196F3)
+        ),
+        UseCaseInfo(
+            name = "Environmental Monitoring",
+            description = "Ambient data collection including noise levels, environmental sensors, and location context",
+            requiredPermissions = listOf(
+                TelemetryPermissions.AUDIO_RECORDING,
+                TelemetryPermissions.LOCATION_FINE,
+                TelemetryPermissions.LOCATION_COARSE,
+                TelemetryPermissions.NETWORK_STATE,
+                TelemetryPermissions.WIFI_STATE
+            ),
+            icon = Icons.Default.Nature,
+            color = Color(0xFF9C27B0)
+        ),
+        UseCaseInfo(
+            name = "Security Monitoring",
+            description = "Comprehensive security monitoring with all sensors for theft detection and unauthorized access",
+            requiredPermissions = TelemetryPermissions.getAllRequiredPermissions().toList(),
+            icon = Icons.Default.Security,
+            color = Color(0xFFF44336)
+        ),
+        UseCaseInfo(
+            name = "Battery Saver",
+            description = "Minimal monitoring for maximum battery life with basic device state only",
+            requiredPermissions = emptyList(), // Only uses normal permissions
+            icon = Icons.Default.BatteryChargingFull,
+            color = Color(0xFF4CAF50)
+        ),
+        UseCaseInfo(
+            name = "Network Diagnostics",
+            description = "Network performance testing and connectivity analysis with minimal location context",
+            requiredPermissions = listOf(
+                TelemetryPermissions.LOCATION_COARSE,
+                TelemetryPermissions.NETWORK_STATE,
+                TelemetryPermissions.WIFI_STATE
+            ),
+            icon = Icons.Default.NetworkCheck,
+            color = Color(0xFF00BCD4)
+        )
+    )
+
+    // SDK permissions mapped to UI info with use case information
+    val telemetryPermissions = listOf(
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.AUDIO_RECORDING,
+            title = "Audio Recording",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.AUDIO_RECORDING),
+            icon = Icons.Default.Mic,
+            color = Color(0xFF9C27B0),
+            category = "Audio Telemetry",
+            importance = PermissionImportance.HIGH,
+            useCases = listOf("Environmental Monitoring", "Security Monitoring")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.LOCATION_FINE,
+            title = "Precise Location",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.LOCATION_FINE),
+            icon = Icons.Default.LocationOn,
+            color = Color(0xFF4CAF50),
+            category = "Location Telemetry",
+            importance = PermissionImportance.CRITICAL,
+            useCases = listOf("Automotive Telemetry", "Fitness Tracking", "Environmental Monitoring", "Security Monitoring")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.LOCATION_COARSE,
+            title = "Approximate Location",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.LOCATION_COARSE),
+            icon = Icons.Default.MyLocation,
+            color = Color(0xFF2196F3),
+            category = "Location Telemetry",
+            importance = PermissionImportance.HIGH,
+            useCases = listOf("Automotive Telemetry", "Fitness Tracking", "Environmental Monitoring", "Security Monitoring", "Network Diagnostics")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.BLUETOOTH_CONNECT,
+            title = "Bluetooth Access",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.BLUETOOTH_CONNECT),
+            icon = Icons.Default.Bluetooth,
+            color = Color(0xFF00BCD4),
+            category = "Connectivity Telemetry",
+            importance = PermissionImportance.MEDIUM,
+            useCases = listOf("Security Monitoring")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.READ_PHONE_STATE,
+            title = "Phone State",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.READ_PHONE_STATE),
+            icon = Icons.Default.SignalCellularAlt,
+            color = Color(0xFFFF9800),
+            category = "Device State Telemetry",
+            importance = PermissionImportance.MEDIUM,
+            useCases = listOf("Security Monitoring")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.WIFI_STATE,
+            title = "WiFi State",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.WIFI_STATE),
+            icon = Icons.Default.Wifi,
+            color = Color(0xFF607D8B),
+            category = "Connectivity Telemetry",
+            importance = PermissionImportance.LOW,
+            useCases = listOf("Environmental Monitoring", "Security Monitoring", "Network Diagnostics")
+        ),
+        TelemetryPermissionInfo(
+            permission = TelemetryPermissions.NETWORK_STATE,
+            title = "Network State",
+            description = PermissionUtils.getPermissionDescription(TelemetryPermissions.NETWORK_STATE),
+            icon = Icons.Default.NetworkCheck,
+            color = Color(0xFF795548),
+            category = "Connectivity Telemetry",
+            importance = PermissionImportance.LOW,
+            useCases = listOf("Environmental Monitoring", "Security Monitoring", "Network Diagnostics")
+        )
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(16.dp)
     ) {
-        // Progress indicator
-        LinearProgressIndicator(
-            progress = { (pagerState.currentPage + 1f) / pagerState.pageCount },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
+        // Header
+        TelemetryPermissionsHeader(
+            grantedCount = permissionStates.count { it.value is PermissionState.Granted },
+            totalCount = telemetryPermissions.size,
+            activeServices = telemetryServices.count { it.value }
         )
 
-        Text(
-            text = "Step ${pagerState.currentPage + 1} of ${pagerState.pageCount}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Use case selection
+        UseCaseSelection(
+            useCases = telemetryUseCases,
+            selectedUseCase = selectedUseCase,
+            onUseCaseSelected = { selectedUseCase = it },
+            permissionStates = permissionStates,
+            onStartUseCase = { useCase ->
+                when (useCase.name) {
+                    "Automotive Telemetry" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.automotiveUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                    "Fitness Tracking" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.fitnessTrackingUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                    "Environmental Monitoring" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.environmentalMonitoringUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                    "Security Monitoring" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.securityMonitoringUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                    "Battery Saver" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.batterySaverUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                    "Network Diagnostics" -> {
+                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.networkDiagnosticsUseCase())
+                        telemetriManager.startTelemetryCollection()
+                    }
+                }
+                onPermissionsGranted()
+            }
         )
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.weight(1f)
-        ) { page ->
-            when (page) {
-                0 -> IntroductionPage()
-                pagerState.pageCount - 1 -> SummaryPage(
-                    multiplePermissionsState = multiplePermissionsState,
-                    onRequestPermissions = {
-                        multiplePermissionsState.launchMultiplePermissionRequest()
-                    }
-                )
-                else -> {
-                    val permissionInfo = permissionsToRequest[page - 1]
-                    PermissionDetailPage(permissionInfo = permissionInfo)
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Navigation buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Button(
-                onClick = {
-                    if (pagerState.currentPage > 0) {
-                        currentStep = pagerState.currentPage - 1
-                    }
-                },
-                enabled = pagerState.currentPage > 0
-            ) {
-                Text("Previous")
-            }
-
-            if (pagerState.currentPage < pagerState.pageCount - 1) {
-                Button(
-                    onClick = {
-                        currentStep = pagerState.currentPage + 1
-                    }
-                ) {
-                    Text("Next")
-                }
-            } else {
-                Button(
-                    onClick = {
-                        multiplePermissionsState.launchMultiplePermissionRequest()
-                    }
-                ) {
-                    Text("Grant Permissions")
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(currentStep) {
-        pagerState.animateScrollToPage(currentStep)
-    }
-}
-
-@Composable
-private fun IntroductionPage() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.Security,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary
+        // Error display
+        showError?.let { error ->
+            ErrorCard(
+                error = error,
+                onDismiss = { showError = null }
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Welcome to Telemetri SDK Demo",
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold
-            )
-
             Spacer(modifier = Modifier.height(16.dp))
+        }
 
-            Text(
-                text = "This demonstration showcases comprehensive telemetry data collection capabilities. To provide the best experience, we need access to various device sensors and features.",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Use Cases Covered:",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("• Automotive Telemetry", style = MaterialTheme.typography.bodyMedium)
-                    Text("• Fitness & Health Tracking", style = MaterialTheme.typography.bodyMedium)
-                    Text("• Environmental Monitoring", style = MaterialTheme.typography.bodyMedium)
-                    Text("• Security & Surveillance", style = MaterialTheme.typography.bodyMedium)
-                    Text("• Battery-Optimized Collection", style = MaterialTheme.typography.bodyMedium)
-                }
+        // Permissions list
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(telemetryPermissions) { permissionInfo ->
+                PermissionCard(
+                    permissionInfo = permissionInfo,
+                    state = permissionStates[permissionInfo.permission] ?: PermissionState.NotRequested,
+                    onRequestPermission = {
+                        requestPermissionByCategory(permissionInfo.category, permissionHelper)
+                    },
+                    isHighlighted = selectedUseCase?.let { useCase ->
+                        telemetryUseCases.find { it.name == useCase }?.requiredPermissions?.contains(permissionInfo.permission) == true
+                    } ?: false
+                )
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Action buttons
+        PermissionActionButtons(
+            allGranted = permissionHelper.areAllPermissionsGranted(),
+            onRequestAll = {
+                permissionHelper.requestAllPermissions()
+            },
+            onContinue = onPermissionsGranted
+        )
+    }
+
+    // Cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            audioService.cleanup()
         }
     }
 }
 
 @Composable
-private fun PermissionDetailPage(permissionInfo: PermissionInfo) {
+private fun UseCaseSelection(
+    useCases: List<UseCaseInfo>,
+    selectedUseCase: String?,
+    onUseCaseSelected: (String?) -> Unit,
+    permissionStates: Map<String, PermissionState>,
+    onStartUseCase: (UseCaseInfo) -> Unit
+) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(16.dp)
         ) {
-            Card(
-                shape = RoundedCornerShape(50),
-                colors = CardDefaults.cardColors(containerColor = permissionInfo.color.copy(alpha = 0.1f))
-            ) {
-                Icon(
-                    imageVector = permissionInfo.icon,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .padding(16.dp),
-                    tint = permissionInfo.color
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
             Text(
-                text = permissionInfo.title,
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
+                text = "Choose Your Use Case",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            ImportanceBadge(importance = permissionInfo.importance)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             Text(
-                text = permissionInfo.description,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
+                text = "Select the primary purpose to see required permissions and start optimized telemetry",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 200.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Why is this needed?",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = getPermissionRationale(permissionInfo.permission),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                items(useCases) { useCase ->
+                    val hasRequiredPermissions = useCase.requiredPermissions.all { permission ->
+                        permissionStates[permission] is PermissionState.Granted
+                    }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (selectedUseCase == useCase.name) {
+                                    Modifier.padding(2.dp)
+                                } else Modifier
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedUseCase == useCase.name) {
+                                useCase.color.copy(alpha = 0.1f)
+                            } else MaterialTheme.colorScheme.surface
+                        ),
+                        onClick = {
+                            onUseCaseSelected(if (selectedUseCase == useCase.name) null else useCase.name)
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = useCase.icon,
+                                contentDescription = null,
+                                tint = useCase.color,
+                                modifier = Modifier.size(24.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = useCase.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "${useCase.requiredPermissions.size} permissions required",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (hasRequiredPermissions && useCase.requiredPermissions.isNotEmpty()) {
+                                Button(
+                                    onClick = { onStartUseCase(useCase) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = useCase.color),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = "Start",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            } else if (useCase.requiredPermissions.isEmpty()) {
+                                Button(
+                                    onClick = { onStartUseCase(useCase) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = useCase.color),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = "Start",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Permissions needed",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -330,122 +474,381 @@ private fun PermissionDetailPage(permissionInfo: PermissionInfo) {
 }
 
 @Composable
-private fun ImportanceBadge(importance: PermissionImportance) {
-    val (text, color) = when (importance) {
-        PermissionImportance.CRITICAL -> "Critical" to Color(0xFFF44336)
-        PermissionImportance.HIGH -> "High Priority" to Color(0xFFFF9800)
-        PermissionImportance.MEDIUM -> "Recommended" to Color(0xFF2196F3)
-        PermissionImportance.LOW -> "Optional" to Color(0xFF4CAF50)
-    }
+private fun TelemetryPermissionsHeader(
+    grantedCount: Int,
+    totalCount: Int,
+    activeServices: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Security,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Telemetry SDK Permissions",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Grant permissions to enable comprehensive telemetry data collection",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatusChip(
+                    label = "Permissions",
+                    value = "$grantedCount/$totalCount",
+                    color = if (grantedCount == totalCount) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                )
+                StatusChip(
+                    label = "Services",
+                    value = "$activeServices/4",
+                    color = if (activeServices == 4) Color(0xFF4CAF50) else Color(0xFF2196F3)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(
+    label: String,
+    value: String,
+    color: Color
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
         shape = RoundedCornerShape(20.dp)
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = color,
-            fontWeight = FontWeight.Medium
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = color.copy(alpha = 0.8f)
+            )
+        }
     }
 }
 
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
-private fun SummaryPage(
-    multiplePermissionsState: MultiplePermissionsState,
-    onRequestPermissions: () -> Unit
+private fun PermissionCard(
+    permissionInfo: TelemetryPermissionInfo,
+    state: PermissionState,
+    onRequestPermission: () -> Unit,
+    isHighlighted: Boolean = false
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            .then(
+                if (isHighlighted) {
+                    Modifier.padding(2.dp)
+                } else Modifier
+            ),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 8.dp else 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isHighlighted) {
+                permissionInfo.color.copy(alpha = 0.05f)
+            } else MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(16.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Ready to Begin",
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Grant the necessary permissions to unlock the full potential of comprehensive telemetry data collection.",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (multiplePermissionsState.shouldShowRationale) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Permission icon
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = permissionInfo.color.copy(alpha = 0.1f)
+                    )
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
+                    Icon(
+                        imageVector = permissionInfo.icon,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .padding(8.dp),
+                        tint = permissionInfo.color
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Permission info
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = permissionInfo.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = permissionInfo.category,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (permissionInfo.useCases.isNotEmpty()) {
                         Text(
-                            text = "⚠️ Some permissions were denied",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "To experience all telemetry features, please grant the requested permissions.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer
+                            text = "Used in: ${permissionInfo.useCases.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = permissionInfo.color,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+
+                // Permission state and action
+                PermissionStateIndicator(
+                    state = state,
+                    importance = permissionInfo.importance,
+                    onRequest = onRequestPermission
+                )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = permissionInfo.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionStateIndicator(
+    state: PermissionState,
+    importance: PermissionImportance,
+    onRequest: () -> Unit
+) {
+    when (state) {
+        is PermissionState.Granted -> {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Granted",
+                tint = Color(0xFF4CAF50),
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        is PermissionState.Denied, is PermissionState.NotRequested -> {
             Button(
-                onClick = onRequestPermissions,
-                modifier = Modifier.fillMaxWidth()
+                onClick = onRequest,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = when (importance) {
+                        PermissionImportance.CRITICAL -> Color(0xFFF44336)
+                        PermissionImportance.HIGH -> Color(0xFFFF9800)
+                        PermissionImportance.MEDIUM -> Color(0xFF2196F3)
+                        PermissionImportance.LOW -> Color(0xFF4CAF50)
+                    }
+                ),
+                modifier = Modifier.height(32.dp)
             ) {
-                Text("Grant All Permissions")
+                Text(
+                    text = "Grant",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+        is PermissionState.PermanentlyDenied -> {
+            OutlinedButton(
+                onClick = onRequest,
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
 }
 
-private fun getPermissionRationale(permission: String): String {
-    return when (permission) {
-        Manifest.permission.ACCESS_FINE_LOCATION ->
-            "Precise location enables accurate tracking for automotive navigation, fitness route mapping, and location-based environmental analysis."
-        Manifest.permission.ACCESS_COARSE_LOCATION ->
-            "General location provides context for network-based positioning and regional environmental data correlation."
-        Manifest.permission.RECORD_AUDIO ->
-            "Audio analysis detects environmental sounds, measures noise levels, and provides acoustic context for comprehensive telemetry."
-        Manifest.permission.READ_PHONE_STATE ->
-            "Phone state access enables monitoring of cellular network quality, signal strength, and connectivity performance metrics."
-        Manifest.permission.CAMERA ->
-            "Camera access enables visual context analysis, automatic light level detection, and motion estimation through computer vision."
-        Manifest.permission.BODY_SENSORS ->
-            "Body sensor access enables heart rate monitoring and other biometric data collection for health and fitness applications."
-        "com.google.android.gms.permission.ACTIVITY_RECOGNITION" ->
-            "Activity recognition automatically detects user movement patterns, enabling intelligent context-aware telemetry collection."
-        else -> "This permission enhances the telemetry collection capabilities and user experience."
+@Composable
+private fun ErrorCard(
+    error: String,
+    onDismiss: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionActionButtons(
+    allGranted: Boolean,
+    onRequestAll: () -> Unit,
+    onContinue: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (!allGranted) {
+            Button(
+                onClick = onRequestAll,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Grant All Permissions")
+            }
+        } else {
+            Button(
+                onClick = onContinue,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Continue to App")
+            }
+        }
+    }
+}
+
+// Permission handling functions
+private fun requestPermissionByCategory(
+    category: String,
+    permissionHelper: com.commerin.telemetri.helpers.TelemetryPermissionHelper
+) {
+    when (category) {
+        "Audio Telemetry" -> permissionHelper.requestAudioPermission()
+        "Location Telemetry" -> permissionHelper.requestLocationPermissions()
+        "Connectivity Telemetry" -> permissionHelper.requestConnectivityPermissions()
+        "Device State Telemetry" -> permissionHelper.requestDeviceStatePermissions()
+    }
+}
+
+private fun handleAudioPermissionChange(
+    state: PermissionState,
+    audioService: AudioTelemetryService,
+    onError: (String) -> Unit
+) {
+    when (state) {
+        is PermissionState.Granted -> {
+            try {
+                audioService.startAudioTelemetry()
+            } catch (e: TelemetryPermissionException) {
+                onError("Audio telemetry error: ${e.message}")
+            } catch (e: SecurityException) {
+                onError("Audio permission denied by system: ${e.message}")
+            }
+        }
+        is PermissionState.Denied -> {
+            onError("Audio permission needed for environmental sound analysis")
+        }
+        is PermissionState.PermanentlyDenied -> {
+            onError("Audio permission permanently denied. Please enable in settings.")
+        }
+        is PermissionState.NotRequested -> {
+            // Permission not yet requested, no action needed
+        }
+    }
+}
+
+private fun handleLocationPermissionChange(state: PermissionState) {
+    when (state) {
+        is PermissionState.Granted -> {
+            // Start location telemetry service
+        }
+        is PermissionState.Denied,
+        is PermissionState.PermanentlyDenied,
+        is PermissionState.NotRequested -> {
+            // Handle denied/not requested states
+        }
+    }
+}
+
+private fun handleConnectivityPermissionChange(state: PermissionState) {
+    when (state) {
+        is PermissionState.Granted -> {
+            // Start connectivity telemetry service
+        }
+        is PermissionState.Denied,
+        is PermissionState.PermanentlyDenied,
+        is PermissionState.NotRequested -> {
+            // Handle denied/not requested states
+        }
+    }
+}
+
+private fun handleDeviceStatePermissionChange(state: PermissionState) {
+    when (state) {
+        is PermissionState.Granted -> {
+            // Start device state telemetry service
+        }
+        is PermissionState.Denied,
+        is PermissionState.PermanentlyDenied,
+        is PermissionState.NotRequested -> {
+            // Handle denied/not requested states
+        }
     }
 }

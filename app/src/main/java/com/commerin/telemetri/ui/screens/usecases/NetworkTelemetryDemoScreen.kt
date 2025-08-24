@@ -3,7 +3,6 @@ package com.commerin.telemetri.ui.screens.usecases
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -12,28 +11,46 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commerin.telemetri.core.NetworkTestType
 import com.commerin.telemetri.ui.components.charts.SignalStrengthGauge
 import com.commerin.telemetri.ui.components.charts.NetworkSpeedGauge
 import com.commerin.telemetri.ui.components.charts.NetworkSpeedTestWidget
 import com.commerin.telemetri.ui.components.charts.NetworkSpeedData
-import com.commerin.telemetri.ui.components.charts.NetworkTestType
+import com.commerin.telemetri.ui.components.charts.AppNetworkTestType
 import com.commerin.telemetri.ui.components.TransparentAppBar
-import com.commerin.telemetri.ui.viewmodels.AutomotiveViewModel
-import kotlinx.coroutines.delay
+import com.commerin.telemetri.ui.viewmodels.NetworkViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NetworkTelemetryDemoScreen(
     onBackPressed: () -> Unit,
-    viewModel: AutomotiveViewModel = hiltViewModel()
+    viewModel: NetworkViewModel = hiltViewModel()
 ) {
     val isCollecting by viewModel.isCollecting.observeAsState(false)
     val networkData by viewModel.networkData.observeAsState()
+    val speedTestResult by viewModel.speedTestResult.observeAsState()
 
-    // Network speed test state
-    var speedTestData by remember {
-        mutableStateOf(NetworkSpeedData())
-    }
+    // Convert SDK SpeedTestResult to UI NetworkSpeedData
+    val speedTestData = speedTestResult?.let { result ->
+        NetworkSpeedData(
+            downloadSpeed = result.downloadSpeed,
+            uploadSpeed = result.uploadSpeed,
+            ping = result.ping,
+            isTestRunning = result.isTestRunning,
+            currentTestType = when (result.currentTestType) {
+                NetworkTestType.DOWNLOAD -> AppNetworkTestType.DOWNLOAD
+                NetworkTestType.UPLOAD -> AppNetworkTestType.UPLOAD
+                NetworkTestType.PING -> AppNetworkTestType.PING
+                null -> null
+            },
+            progress = result.progress
+        )
+    } ?: NetworkSpeedData()
+
+    // Additional metrics from enhanced speed test
+    val jitter = speedTestResult?.jitter ?: 0f
+    val packetLoss = speedTestResult?.packetLoss ?: 0f
+    val errorMessage = speedTestResult?.errorMessage
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -72,14 +89,14 @@ fun NetworkTelemetryDemoScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "Network Monitoring",
+                                    text = "Network Diagnostics",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = if (isCollecting) "Active - Real-time monitoring" else "Stopped",
+                                    text = if (isCollecting) "Active - Optimized network-only monitoring" else "Stopped",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = if (isCollecting)
                                         MaterialTheme.colorScheme.tertiary else
@@ -92,7 +109,7 @@ fun NetworkTelemetryDemoScreen(
                                     if (isCollecting) {
                                         viewModel.stopCollection()
                                     } else {
-                                        viewModel.startAutomotiveCollection()
+                                        viewModel.startNetworkDiagnostics()
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
@@ -115,63 +132,17 @@ fun NetworkTelemetryDemoScreen(
                 }
             }
 
-            // Network Speed Test Widget
+            // Network Speed Test Widget - now using real data
             item {
-                // Simulate speed test when started
-                LaunchedEffect(speedTestData.isTestRunning) {
-                    if (speedTestData.isTestRunning) {
-                        // Download test
-                        speedTestData = speedTestData.copy(currentTestType = NetworkTestType.DOWNLOAD)
-                        for (i in 1..100 step 5) {
-                            delay(50)
-                            speedTestData = speedTestData.copy(
-                                progress = i / 300f, // 3 phases total
-                                downloadSpeed = (Math.random() * 80 + 20).toFloat() // 20-100 Mbps
-                            )
-                        }
-
-                        // Upload test
-                        speedTestData = speedTestData.copy(currentTestType = NetworkTestType.UPLOAD)
-                        for (i in 101..200 step 5) {
-                            delay(50)
-                            speedTestData = speedTestData.copy(
-                                progress = i / 300f,
-                                uploadSpeed = (Math.random() * 40 + 10).toFloat() // 10-50 Mbps
-                            )
-                        }
-
-                        // Ping test
-                        speedTestData = speedTestData.copy(currentTestType = NetworkTestType.PING)
-                        for (i in 201..300 step 10) {
-                            delay(30)
-                            speedTestData = speedTestData.copy(
-                                progress = i / 300f,
-                                ping = (Math.random() * 30 + 10).toFloat() // 10-40 ms
-                            )
-                        }
-
-                        speedTestData = speedTestData.copy(
-                            isTestRunning = false,
-                            currentTestType = null,
-                            progress = 1f
-                        )
-                    }
-                }
-
                 NetworkSpeedTestWidget(
                     networkData = speedTestData,
                     onStartTest = {
                         if (!speedTestData.isTestRunning) {
-                            // Start the speed test simulation in a coroutine
-                            speedTestData = speedTestData.copy(isTestRunning = true, progress = 0f)
+                            viewModel.startNetworkSpeedTest()
                         }
                     },
                     onStopTest = {
-                        speedTestData = speedTestData.copy(
-                            isTestRunning = false,
-                            currentTestType = null,
-                            progress = 0f
-                        )
+                        viewModel.stopNetworkSpeedTest()
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -248,6 +219,14 @@ fun NetworkTelemetryDemoScreen(
                             NetworkDetailRow("Signal Quality", "${(data.signalQuality * 100).toInt()}%")
                             NetworkDetailRow("Latency", "${data.latency}ms")
                             NetworkDetailRow("Packet Loss", "${data.packetLoss}%")
+                            NetworkDetailRow("Jitter", "${String.format("%.1f", jitter)} ms")
+
+                            // Only show error message if it exists and is not null/empty
+                            errorMessage?.let { error ->
+                                if (error.isNotBlank() && error != "null") {
+                                    NetworkDetailRow("Error", error)
+                                }
+                            }
 
                             data.wifiInfo?.let { wifi ->
                                 Spacer(modifier = Modifier.height(16.dp))

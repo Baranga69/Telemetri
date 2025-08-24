@@ -16,8 +16,9 @@ import kotlin.math.*
 class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
     companion object {
         private const val TAG = "MotionAnalysisEngine"
-        private const val ANALYSIS_WINDOW_MS = 2000L // 2 seconds
+        private const val ANALYSIS_WINDOW_MS = 500L // Reduced to 0.5 seconds for more responsive fitness tracking
         private const val ACTIVITY_CONFIDENCE_THRESHOLD = 0.7f
+        private const val STEP_UPDATE_INTERVAL_MS = 100L // Update step count every 100ms for real-time feedback
     }
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -37,6 +38,8 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
     private var stepCount = 0
     private var lastStepTime = 0L
     private var analysisJob: Job? = null
+    private var stepUpdateJob: Job? = null
+    private var lastStepUpdateTime = 0L
 
     fun startAnalysis() {
         if (isAnalyzing) {
@@ -47,6 +50,7 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
         isAnalyzing = true
         registerSensors()
 
+        // Main analysis job for motion data
         analysisJob = scope.launch {
             while (isAnalyzing) {
                 delay(ANALYSIS_WINDOW_MS)
@@ -54,7 +58,15 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
             }
         }
 
-        Log.d(TAG, "Motion analysis started")
+        // Separate job for real-time step updates
+        stepUpdateJob = scope.launch {
+            while (isAnalyzing) {
+                delay(STEP_UPDATE_INTERVAL_MS)
+                updateStepData()
+            }
+        }
+
+        Log.d(TAG, "Motion analysis started with enhanced step tracking")
     }
 
     fun stopAnalysis() {
@@ -66,6 +78,7 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
         isAnalyzing = false
         unregisterSensors()
         analysisJob?.cancel()
+        stepUpdateJob?.cancel()
         clearBuffers()
 
         Log.d(TAG, "Motion analysis stopped")
@@ -147,79 +160,116 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
     }
 
     private fun analyzeMotionData() {
-        try {
-            synchronized(this) {
-                if (accelerometerData.isEmpty()) return
+        if (accelerometerData.isEmpty()) return
 
-                val accelerationMagnitude = calculateMagnitude(accelerometerData)
-                val gyroscopeMagnitude = calculateMagnitude(gyroscopeData)
-                val magneticFieldMagnitude = calculateMagnitude(magnetometerData)
+        val (accelX, accelY, accelZ) = getLatestAcceleration()
+        val (gyroX, gyroY, gyroZ) = getLatestGyroscope()
 
-                val linearAcceleration = getLatestTriple(linearAccelData)
-                val gravity = getLatestTriple(gravityData)
-                val rotationVector = calculateRotationVector()
+        val accelMagnitude = sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ)
+        val gyroMagnitude = sqrt(gyroX * gyroX + gyroY * gyroY + gyroZ * gyroZ)
 
-                val activityType = detectActivity(accelerationMagnitude, gyroscopeMagnitude)
-                val confidence = calculateConfidence(activityType, accelerationMagnitude, gyroscopeMagnitude)
-                val stepFrequency = calculateStepFrequency()
+        // Enhanced vehicle speed calculation using sensor fusion
+        val vehicleSpeed = calculateVehicleSpeed(accelMagnitude, gyroMagnitude)
 
-                val motionData = MotionData(
-                    accelerationMagnitude = accelerationMagnitude,
-                    gyroscopeMagnitude = gyroscopeMagnitude,
-                    magneticFieldMagnitude = magneticFieldMagnitude,
-                    linearAcceleration = linearAcceleration,
-                    gravity = gravity,
-                    rotationVector = rotationVector,
-                    activityType = activityType,
-                    confidence = confidence,
-                    stepCount = stepCount,
-                    stepFrequency = stepFrequency,
-                    timestamp = System.currentTimeMillis()
-                )
+        val activityType = detectActivity(accelMagnitude, gyroMagnitude, vehicleSpeed)
+        val confidence = calculateConfidence(activityType, accelMagnitude, gyroMagnitude)
 
-                _motionData.postValue(motionData)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error analyzing motion data", e)
-        }
+        val motionData = MotionData(
+            accelerationMagnitude = accelMagnitude,
+            gyroscopeMagnitude = gyroMagnitude,
+            magneticFieldMagnitude = getMagneticFieldMagnitude(),
+            linearAcceleration = getLatestLinearAcceleration(),
+            gravity = getLatestGravity(),
+            rotationVector = calculateRotationVector(),
+            activityType = activityType,
+            confidence = confidence,
+            stepCount = stepCount,
+            stepFrequency = stepFrequency(),
+            vehicleSpeed = vehicleSpeed,
+            accelerationX = accelX,
+            accelerationY = accelY,
+            accelerationZ = accelZ,
+            gyroscopeX = gyroX,
+            gyroscopeY = gyroY,
+            gyroscopeZ = gyroZ,
+            timestamp = System.currentTimeMillis()
+        )
+
+        _motionData.postValue(motionData)
     }
 
-    private fun calculateMagnitude(data: List<FloatArray>): Float {
-        if (data.isEmpty()) return 0f
+    private var lastVelocity = floatArrayOf(0f, 0f, 0f)
+    private var lastTimestamp = 0L
+    private val velocityHistory = mutableListOf<Float>()
 
-        var totalMagnitude = 0f
-        for (values in data.takeLast(10)) { // Use last 10 readings
-            val magnitude = sqrt(values[0] * values[0] + values[1] * values[1] + values[2] * values[2])
-            totalMagnitude += magnitude
+    private fun calculateVehicleSpeed(accelMagnitude: Float, gyroMagnitude: Float): Float {
+        if (linearAccelData.isEmpty()) return 0f
+
+        val currentTime = System.currentTimeMillis()
+        if (lastTimestamp == 0L) {
+            lastTimestamp = currentTime
+            return 0f
         }
-        return totalMagnitude / minOf(data.size, 10)
-    }
 
-    private fun getLatestTriple(data: List<FloatArray>): Triple<Float, Float, Float> {
-        return if (data.isNotEmpty()) {
-            val latest = data.last()
-            Triple(latest[0], latest[1], latest[2])
+        val deltaTime = (currentTime - lastTimestamp) / 1000f // Convert to seconds
+        lastTimestamp = currentTime
+
+        // Get linear acceleration (gravity removed)
+        val linearAccel = linearAccelData.lastOrNull() ?: return 0f
+
+        // Integrate acceleration to get velocity change
+        val deltaVx = linearAccel[0] * deltaTime
+        val deltaVy = linearAccel[1] * deltaTime
+        val deltaVz = linearAccel[2] * deltaTime
+
+        // Update velocity
+        lastVelocity[0] += deltaVx
+        lastVelocity[1] += deltaVy
+        lastVelocity[2] += deltaVz
+
+        // Apply damping to prevent drift (sensor noise compensation)
+        val dampingFactor = if (accelMagnitude < 0.5f) 0.95f else 0.98f
+        lastVelocity[0] *= dampingFactor
+        lastVelocity[1] *= dampingFactor
+        lastVelocity[2] *= dampingFactor
+
+        // Calculate speed magnitude
+        val speed = sqrt(
+            lastVelocity[0] * lastVelocity[0] +
+            lastVelocity[1] * lastVelocity[1] +
+            lastVelocity[2] * lastVelocity[2]
+        )
+
+        // Apply vehicle motion filtering
+        val filteredSpeed = if (isVehicleMotion(accelMagnitude, gyroMagnitude)) {
+            // Store in history for smoothing
+            velocityHistory.add(speed)
+            if (velocityHistory.size > 10) velocityHistory.removeAt(0)
+
+            // Return smoothed speed
+            velocityHistory.average().toFloat()
         } else {
-            Triple(0f, 0f, 0f)
+            // Reset velocity if not in vehicle
+            lastVelocity = floatArrayOf(0f, 0f, 0f)
+            0f
         }
+
+        return maxOf(0f, filteredSpeed) // Ensure non-negative speed
     }
 
-    private fun calculateRotationVector(): FloatArray {
-        // Simplified rotation vector calculation
-        // In a real implementation, you'd use SensorManager.getRotationMatrix()
-        return if (accelerometerData.isNotEmpty() && magnetometerData.isNotEmpty()) {
-            val accel = accelerometerData.last()
-            val mag = magnetometerData.last()
-            floatArrayOf(accel[0], accel[1], accel[2], mag[0])
-        } else {
-            floatArrayOf(0f, 0f, 0f, 0f)
-        }
+    private fun isVehicleMotion(accelMagnitude: Float, gyroMagnitude: Float): Boolean {
+        // Vehicle motion characteristics:
+        // - Sustained acceleration patterns
+        // - Moderate to high acceleration magnitude
+        // - Rotational movement (turns, steering)
+        return accelMagnitude > 2f && (gyroMagnitude > 0.5f || accelMagnitude > 8f)
     }
 
-    private fun detectActivity(accelMagnitude: Float, gyroMagnitude: Float): ActivityType {
+    private fun detectActivity(accelMagnitude: Float, gyroMagnitude: Float, vehicleSpeed: Float): ActivityType {
         return when {
+            vehicleSpeed > 5f -> ActivityType.IN_VEHICLE // Speed > 5 m/s indicates vehicle
             accelMagnitude < 0.5f && gyroMagnitude < 0.1f -> ActivityType.STILL
-            accelMagnitude > 15f && gyroMagnitude > 5f -> ActivityType.IN_VEHICLE
+            accelMagnitude > 12f && gyroMagnitude > 3f -> ActivityType.IN_VEHICLE
             accelMagnitude in 2f..8f && stepFrequency() > 1f -> ActivityType.WALKING
             accelMagnitude > 8f && stepFrequency() > 2f -> ActivityType.RUNNING
             gyroMagnitude > 2f -> ActivityType.TILTING
@@ -264,5 +314,86 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
     fun cleanup() {
         stopAnalysis()
         scope.cancel()
+    }
+
+    private fun getLatestAcceleration(): Triple<Float, Float, Float> {
+        return if (accelerometerData.isNotEmpty()) {
+            val latest = accelerometerData.last()
+            Triple(latest[0], latest[1], latest[2])
+        } else {
+            Triple(0f, 0f, 0f)
+        }
+    }
+
+    private fun getLatestGyroscope(): Triple<Float, Float, Float> {
+        return if (gyroscopeData.isNotEmpty()) {
+            val latest = gyroscopeData.last()
+            Triple(latest[0], latest[1], latest[2])
+        } else {
+            Triple(0f, 0f, 0f)
+        }
+    }
+
+    private fun getLatestLinearAcceleration(): Triple<Float, Float, Float> {
+        return if (linearAccelData.isNotEmpty()) {
+            val latest = linearAccelData.last()
+            Triple(latest[0], latest[1], latest[2])
+        } else {
+            Triple(0f, 0f, 0f)
+        }
+    }
+
+    private fun getLatestGravity(): Triple<Float, Float, Float> {
+        return if (gravityData.isNotEmpty()) {
+            val latest = gravityData.last()
+            Triple(latest[0], latest[1], latest[2])
+        } else {
+            Triple(0f, 9.8f, 0f) // Default gravity
+        }
+    }
+
+    private fun getMagneticFieldMagnitude(): Float {
+        return if (magnetometerData.isNotEmpty()) {
+            val latest = magnetometerData.last()
+            sqrt(latest[0] * latest[0] + latest[1] * latest[1] + latest[2] * latest[2])
+        } else {
+            0f
+        }
+    }
+
+    private fun calculateRotationVector(): FloatArray {
+        // Simplified rotation vector calculation
+        // In a real implementation, you'd use SensorManager.getRotationMatrix()
+        return if (accelerometerData.isNotEmpty() && magnetometerData.isNotEmpty()) {
+            val accel = accelerometerData.last()
+            val mag = magnetometerData.last()
+            floatArrayOf(accel[0], accel[1], accel[2], mag[0])
+        } else {
+            floatArrayOf(0f, 0f, 0f, 0f)
+        }
+    }
+
+    /**
+     * Real-time step data update for immediate fitness tracking feedback
+     * This runs every 100ms to provide responsive step count updates
+     */
+    private fun updateStepData() {
+        val currentTime = System.currentTimeMillis()
+
+        // Only update if we have recent step data and sufficient time has passed
+        if (currentTime - lastStepUpdateTime > STEP_UPDATE_INTERVAL_MS && stepCount > 0) {
+            // Create quick motion data update for step count changes
+            val quickMotionData = _motionData.value?.copy(
+                stepCount = stepCount,
+                stepFrequency = calculateStepFrequency(),
+                timestamp = currentTime
+            )
+
+            if (quickMotionData != null) {
+                _motionData.postValue(quickMotionData)
+            }
+
+            lastStepUpdateTime = currentTime
+        }
     }
 }

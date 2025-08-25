@@ -1,27 +1,57 @@
 package com.commerin.telemetri.ui.components.charts
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.center
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlin.math.*
+import kotlin.math.sin
 
 enum class AppNetworkTestType {
     DOWNLOAD, UPLOAD, PING
@@ -101,6 +131,39 @@ fun NetworkSpeedTestWidget(
         label = "wave_animation"
     )
 
+    // Continuous loading spinner animation
+    val spinnerRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "spinner_rotation"
+    )
+
+    // Breathing animation for the entire widget
+    val breathingScale by infiniteTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breathing_scale"
+    )
+
+    // Shimmer effect animation
+    val shimmerOffset by infiniteTransition.animateFloat(
+        initialValue = -200f,
+        targetValue = 200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer_offset"
+    )
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -149,11 +212,13 @@ fun NetworkSpeedTestWidget(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Main Speed Gauge & Test Type Indicator
-            // The Box is used to stack the gauge and indicator, but the indicator is no longer offset
             Box(
-                modifier = Modifier.size(280.dp),
+                modifier = Modifier
+                    .size(280.dp)
+                    .scale(if (networkData.isTestRunning) breathingScale else 1f),
                 contentAlignment = Alignment.Center
             ) {
+                // Main gauge canvas
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
@@ -165,8 +230,47 @@ fun NetworkSpeedTestWidget(
                         isTestRunning = networkData.isTestRunning,
                         currentTestType = networkData.currentTestType,
                         waveOffset = waveOffset,
-                        progress = testProgress
+                        progress = testProgress,
+                        spinnerRotation = spinnerRotation,
+                        shimmerOffset = shimmerOffset
                     )
+                }
+
+                // Continuous loading overlay when test is running
+                if (networkData.isTestRunning) {
+                    Canvas(
+                        modifier = Modifier
+                            .size(320.dp)
+                            .scale(breathingScale)
+                    ) {
+                        drawContinuousLoader(
+                            rotation = spinnerRotation,
+                            currentTestType = networkData.currentTestType,
+                            progress = testProgress
+                        )
+                    }
+                }
+
+                // Status text overlay
+                if (networkData.isTestRunning) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.offset(y = 60.dp)
+                    ) {
+                        Text(
+                            text = "Testing...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (networkData.currentTestType != null) {
+                            Text(
+                                text = networkData.currentTestType.name.lowercase().replaceFirstChar { it.uppercase() },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 
@@ -360,7 +464,9 @@ private fun DrawScope.drawNetworkSpeedGauge(
     isTestRunning: Boolean,
     currentTestType: AppNetworkTestType?,
     waveOffset: Float,
-    progress: Float
+    progress: Float,
+    spinnerRotation: Float,
+    shimmerOffset: Float
 ) {
     val center = size.center
     val radius = size.minDimension / 2 * 0.75f
@@ -450,4 +556,83 @@ private fun DrawScope.drawNetworkSpeedGauge(
         radius = 12.dp.toPx(),
         center = center
     )
+}
+
+private fun DrawScope.drawContinuousLoader(
+    rotation: Float,
+    currentTestType: AppNetworkTestType?,
+    progress: Float
+) {
+    val center = size.center
+    val radius = size.minDimension / 2 * 0.75f
+
+    // Draw the loader circles
+    for (i in 0..2) {
+        val waveRadius = radius * (0.3f + i * 0.15f)
+        val alpha = 0.3f - (i * 0.1f)
+
+        drawCircle(
+            color = when (currentTestType) {
+                AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3).copy(alpha = alpha)
+                AppNetworkTestType.UPLOAD -> Color(0xFFFF9800).copy(alpha = alpha)
+                AppNetworkTestType.PING -> Color(0xFF4CAF50).copy(alpha = alpha)
+                else -> Color(0xFF9C27B0).copy(alpha = alpha)
+            },
+            radius = waveRadius,
+            center = center,
+            style = Stroke(width = 2.dp.toPx())
+        )
+    }
+
+    // Draw the rotating line indicator
+    val lineLength = radius * 0.8f
+    val lineStart = Offset(center.x, center.y - radius * 0.2f)
+    val lineEnd = Offset(center.x, center.y - radius * 0.2f - lineLength)
+
+    drawLine(
+        color = when (currentTestType) {
+            AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3)
+            AppNetworkTestType.UPLOAD -> Color(0xFFFF9800)
+            AppNetworkTestType.PING -> Color(0xFF4CAF50)
+            else -> Color(0xFF9C27B0)
+        },
+        start = lineStart,
+        end = lineEnd,
+        strokeWidth = 2.dp.toPx(),
+        cap = StrokeCap.Round
+    )
+
+    // Apply rotation
+    rotate(rotation, pivot = center) {
+        // Redraw the loader circles and line indicator to apply rotation
+        for (i in 0..2) {
+            val waveRadius = radius * (0.3f + i * 0.15f)
+            val alpha = 0.3f - (i * 0.1f)
+
+            drawCircle(
+                color = when (currentTestType) {
+                    AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3).copy(alpha = alpha)
+                    AppNetworkTestType.UPLOAD -> Color(0xFFFF9800).copy(alpha = alpha)
+                    AppNetworkTestType.PING -> Color(0xFF4CAF50).copy(alpha = alpha)
+                    else -> Color(0xFF9C27B0).copy(alpha = alpha)
+                },
+                radius = waveRadius,
+                center = center,
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+
+        drawLine(
+            color = when (currentTestType) {
+                AppNetworkTestType.DOWNLOAD -> Color(0xFF2196F3)
+                AppNetworkTestType.UPLOAD -> Color(0xFFFF9800)
+                AppNetworkTestType.PING -> Color(0xFF4CAF50)
+                else -> Color(0xFF9C27B0)
+            },
+            start = lineStart,
+            end = lineEnd,
+            strokeWidth = 2.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    }
 }

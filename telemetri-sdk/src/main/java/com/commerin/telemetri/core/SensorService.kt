@@ -10,6 +10,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.commerin.telemetri.domain.model.SensorData
 import com.commerin.telemetri.domain.model.SensorType
+import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 
 class SensorService(private val context: Context) {
@@ -25,6 +26,10 @@ class SensorService(private val context: Context) {
     // Track all active sensors and their listeners
     private val activeSensors = ConcurrentHashMap<SensorType, Sensor>()
     private val sensorListeners = ConcurrentHashMap<SensorType, SensorEventListener>()
+
+    // Service state management
+    private var isServiceRunning = false
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Configurable sensor types to collect (can be customized based on use case)
     private val enabledSensorTypes = mutableSetOf<SensorType>().apply {
@@ -53,14 +58,40 @@ class SensorService(private val context: Context) {
         add(SensorType.GEOMAGNETIC_ROTATION_VECTOR)
     }
 
+    // Callback interface for SDK users
+    interface SensorConfigurationListener {
+        fun onSensorEnabled(sensorType: SensorType, success: Boolean)
+        fun onSensorDisabled(sensorType: SensorType)
+        fun onSensorAvailabilityChanged(availableSensors: List<SensorType>)
+    }
+
+    private var configurationListener: SensorConfigurationListener? = null
+
     fun start() {
+        if (isServiceRunning) {
+            Log.w(TAG, "SensorService is already running")
+            return
+        }
+
         Log.d(TAG, "Starting comprehensive sensor data collection...")
+        isServiceRunning = true
         initializeAllSensors()
     }
 
     fun stop() {
+        if (!isServiceRunning) {
+            Log.w(TAG, "SensorService is not running")
+            return
+        }
+
         Log.d(TAG, "Stopping all sensor data collection...")
+        isServiceRunning = false
         stopAllSensors()
+    }
+
+    // Enhanced configuration listener management
+    fun setConfigurationListener(listener: SensorConfigurationListener?) {
+        this.configurationListener = listener
     }
 
     private fun initializeAllSensors() {
@@ -81,13 +112,18 @@ class SensorService(private val context: Context) {
 
                 if (success) {
                     Log.d(TAG, "Successfully registered ${sensorType.name} sensor")
+                    configurationListener?.onSensorEnabled(sensorType, true)
                 } else {
                     Log.w(TAG, "Failed to register ${sensorType.name} sensor")
+                    configurationListener?.onSensorEnabled(sensorType, false)
                 }
             } else {
                 Log.w(TAG, "${sensorType.name} sensor not available on this device")
             }
         }
+
+        // Notify available sensors after initialization
+        notifyAvailableSensors()
     }
 
     private fun stopAllSensors() {
@@ -199,29 +235,270 @@ class SensorService(private val context: Context) {
     }
 
     // Public methods for configuration
-    fun enableSensorType(sensorType: SensorType) {
+    /**
+     * Enable a specific sensor type with immediate activation if service is running
+     */
+    fun enableSensorType(sensorType: SensorType): Boolean {
+        val wasEnabled = enabledSensorTypes.contains(sensorType)
         enabledSensorTypes.add(sensorType)
+
+        // If service is running and sensor wasn't previously enabled, start it immediately
+        if (isServiceRunning && !wasEnabled) {
+            return startIndividualSensor(sensorType)
+        }
+
+        return true
     }
 
-    fun disableSensorType(sensorType: SensorType) {
-        enabledSensorTypes.remove(sensorType)
+    /**
+     * Enable multiple sensor types at once for batch configuration
+     */
+    fun enableSensorTypes(sensorTypes: Collection<SensorType>): Map<SensorType, Boolean> {
+        val results = mutableMapOf<SensorType, Boolean>()
+
+        sensorTypes.forEach { sensorType ->
+            results[sensorType] = enableSensorType(sensorType)
+        }
+
+        notifyAvailableSensors()
+        return results
+    }
+
+    /**
+     * Disable a specific sensor type with immediate deactivation
+     */
+    fun disableSensorType(sensorType: SensorType): Boolean {
+        val wasEnabled = enabledSensorTypes.remove(sensorType)
+
         // Stop the specific sensor if currently active
+        if (wasEnabled) {
+            stopIndividualSensor(sensorType)
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Disable multiple sensor types at once
+     */
+    fun disableSensorTypes(sensorTypes: Collection<SensorType>): Map<SensorType, Boolean> {
+        val results = mutableMapOf<SensorType, Boolean>()
+
+        sensorTypes.forEach { sensorType ->
+            results[sensorType] = disableSensorType(sensorType)
+        }
+
+        notifyAvailableSensors()
+        return results
+    }
+
+    /**
+     * Get all sensors available on the current device (hardware supported)
+     */
+    fun getAllHardwareSupportedSensors(): List<SensorType> {
+        return SensorType.values().filter { sensorType ->
+            isHardwareSupported(sensorType)
+        }
+    }
+
+    /**
+     * Get currently enabled sensor types
+     */
+    fun getEnabledSensorTypes(): Set<SensorType> {
+        return enabledSensorTypes.toSet()
+    }
+
+    /**
+     * Get currently active (running) sensors
+     */
+    fun getActiveSensors(): Set<SensorType> {
+        return activeSensors.keys.toSet()
+    }
+
+    /**
+     * Check if a specific sensor type is currently enabled
+     */
+    fun isSensorEnabled(sensorType: SensorType): Boolean {
+        return enabledSensorTypes.contains(sensorType)
+    }
+
+    /**
+     * Check if a specific sensor is currently active (collecting data)
+     */
+    fun isSensorActive(sensorType: SensorType): Boolean {
+        return activeSensors.containsKey(sensorType)
+    }
+
+    /**
+     * Get available sensors (enabled and hardware supported)
+     */
+    fun getAvailableSensors(): List<SensorType> {
+        return enabledSensorTypes.filter { sensorType ->
+            isHardwareSupported(sensorType)
+        }
+    }
+
+    /**
+     * Check if specific sensor hardware is supported on device
+     */
+    fun isHardwareSupported(sensorType: SensorType): Boolean {
+        val androidType = mapToAndroidSensorType(sensorType)
+        return androidType != -1 && sensorManager.getDefaultSensor(androidType) != null
+    }
+
+    /**
+     * Get sensor information including support and status
+     */
+    fun getSensorInfo(sensorType: SensorType): SensorInfo {
+        val androidType = mapToAndroidSensorType(sensorType)
+        val sensor = sensorManager.getDefaultSensor(androidType)
+
+        return SensorInfo(
+            sensorType = sensorType,
+            isHardwareSupported = sensor != null,
+            isEnabled = enabledSensorTypes.contains(sensorType),
+            isActive = activeSensors.containsKey(sensorType),
+            sensorName = sensor?.name,
+            vendor = sensor?.vendor,
+            maxRange = sensor?.maximumRange,
+            resolution = sensor?.resolution,
+            power = sensor?.power,
+            minDelay = sensor?.minDelay
+        )
+    }
+
+    /**
+     * Configure sensor sampling rates dynamically
+     */
+    fun setSensorDelay(sensorType: SensorType, delay: Int): Boolean {
+        if (!activeSensors.containsKey(sensorType)) {
+            Log.w(TAG, "Cannot set delay for inactive sensor: ${sensorType.name}")
+            return false
+        }
+
+        // Restart the sensor with new delay
+        stopIndividualSensor(sensorType)
+        return startIndividualSensor(sensorType, delay)
+    }
+
+    /**
+     * Reset to default sensor configuration
+     */
+    fun resetToDefaultConfiguration() {
+        // Stop all current sensors
+        stopAllSensors()
+
+        // Reset to default enabled sensors
+        enabledSensorTypes.clear()
+        enabledSensorTypes.addAll(getDefaultSensorTypes())
+
+        // Restart if service was running
+        if (isServiceRunning) {
+            initializeAllSensors()
+        }
+
+        Log.d(TAG, "Reset to default sensor configuration")
+    }
+
+    // Helper methods for individual sensor management
+    private fun startIndividualSensor(sensorType: SensorType, customDelay: Int? = null): Boolean {
+        val androidSensorType = mapToAndroidSensorType(sensorType)
+        val sensor = sensorManager.getDefaultSensor(androidSensorType)
+
+        if (sensor != null) {
+            val listener = createSensorListener(sensorType)
+            sensorListeners[sensorType] = listener
+            activeSensors[sensorType] = sensor
+
+            val delay = customDelay ?: getSensorDelay(sensorType)
+            val success = sensorManager.registerListener(listener, sensor, delay)
+
+            if (success) {
+                Log.d(TAG, "Successfully started ${sensorType.name} sensor")
+                configurationListener?.onSensorEnabled(sensorType, true)
+            } else {
+                Log.w(TAG, "Failed to start ${sensorType.name} sensor")
+                configurationListener?.onSensorEnabled(sensorType, false)
+                // Clean up on failure
+                sensorListeners.remove(sensorType)
+                activeSensors.remove(sensorType)
+            }
+
+            return success
+        } else {
+            Log.w(TAG, "${sensorType.name} sensor not available on this device")
+            configurationListener?.onSensorEnabled(sensorType, false)
+            return false
+        }
+    }
+
+    private fun stopIndividualSensor(sensorType: SensorType) {
         sensorListeners[sensorType]?.let { listener ->
             sensorManager.unregisterListener(listener)
             sensorListeners.remove(sensorType)
             activeSensors.remove(sensorType)
+            configurationListener?.onSensorDisabled(sensorType)
+            Log.d(TAG, "Stopped ${sensorType.name} sensor")
         }
     }
 
-    fun getAvailableSensors(): List<SensorType> {
-        return enabledSensorTypes.filter { sensorType ->
-            val androidType = mapToAndroidSensorType(sensorType)
-            sensorManager.getDefaultSensor(androidType) != null
+    private fun getDefaultSensorTypes(): Set<SensorType> {
+        return setOf(
+            // Motion sensors (essential for most telemetry use cases)
+            SensorType.ACCELEROMETER,
+            SensorType.GYROSCOPE,
+            SensorType.MAGNETOMETER,
+            SensorType.GRAVITY,
+            SensorType.LINEAR_ACCELERATION,
+            SensorType.ROTATION_VECTOR,
+
+            // Environmental sensors (useful for context awareness)
+            SensorType.LIGHT,
+            SensorType.PRESSURE,
+            SensorType.AMBIENT_TEMPERATURE,
+            SensorType.RELATIVE_HUMIDITY,
+
+            // Motion detection (for activity recognition)
+            SensorType.STEP_COUNTER,
+            SensorType.STEP_DETECTOR,
+            SensorType.SIGNIFICANT_MOTION,
+
+            // Additional sensors
+            SensorType.PROXIMITY,
+            SensorType.GAME_ROTATION_VECTOR,
+            SensorType.GEOMAGNETIC_ROTATION_VECTOR
+        )
+    }
+
+    private fun notifyAvailableSensors() {
+        serviceScope.launch {
+            val availableSensors = getAvailableSensors()
+            configurationListener?.onSensorAvailabilityChanged(availableSensors)
         }
     }
 
-    fun isHardwareSupported(sensorType: SensorType): Boolean {
-        val androidType = mapToAndroidSensorType(sensorType)
-        return sensorManager.getDefaultSensor(androidType) != null
+    /**
+     * Cleanup resources when service is destroyed
+     */
+    fun cleanup() {
+        stop()
+        serviceScope.cancel()
+        configurationListener = null
+        Log.d(TAG, "SensorService cleanup completed")
     }
+
+    // Data class for detailed sensor information
+    data class SensorInfo(
+        val sensorType: SensorType,
+        val isHardwareSupported: Boolean,
+        val isEnabled: Boolean,
+        val isActive: Boolean,
+        val sensorName: String?,
+        val vendor: String?,
+        val maxRange: Float?,
+        val resolution: Float?,
+        val power: Float?,
+        val minDelay: Int?
+    )
 }

@@ -3,15 +3,24 @@ package com.commerin.telemetri.core
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
-import java.io.InputStream
-import java.io.OutputStream
+import java.io.BufferedOutputStream
 import java.net.HttpURLConnection
-import java.net.InetAddress
-import java.net.URL
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.URL
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
 
 data class SpeedTestResult(
@@ -33,9 +42,9 @@ enum class NetworkTestType {
 
 class NetworkSpeedTestService {
     companion object {
-        private const val TAG = "NetworkSpeedTestService"
+        private const val TAG = "NetworkSpeedTest"
 
-        // Multiple test endpoints for redundancy and accuracy
+        // Optimized test endpoints for maximum performance
         private val TEST_ENDPOINTS = listOf(
             TestEndpoint(
                 name = "Cloudflare",
@@ -45,27 +54,31 @@ class NetworkSpeedTestService {
                 pingPort = 53
             ),
             TestEndpoint(
-                name = "Google",
-                downloadUrl = "https://www.gstatic.com/hostedimg/",
-                uploadUrl = null, // Google doesn't have a public upload test
+                name = "Fast.com",
+                downloadUrl = "https://api.fast.com/netflix/speedtest/v2/cdn",
+                uploadUrl = null,
                 pingHost = "8.8.8.8",
                 pingPort = 53
             ),
             TestEndpoint(
-                name = "OpenDNS",
-                downloadUrl = null,
+                name = "Google",
+                downloadUrl = "https://www.gstatic.com/hostedimg/",
                 uploadUrl = null,
-                pingHost = "208.67.222.222",
+                pingHost = "8.8.4.4",
                 pingPort = 53
             )
         )
 
-        private const val DOWNLOAD_SIZE_BYTES = 5_000_000 // 5MB per test
-        private const val UPLOAD_SIZE_BYTES = 1_000_000   // 1MB per test
+        // Optimized test parameters for high-speed networks
+        private const val DOWNLOAD_SIZE_BYTES = 50_000_000 // 50MB for accurate high-speed measurement
+        private const val UPLOAD_SIZE_BYTES = 25_000_000   // 25MB for upload test
         private const val PING_TIMEOUT_MS = 3000
-        private const val TEST_DURATION_MS = 15000L // 15 seconds max per test
-        private const val PING_SAMPLES = 10 // Number of ping measurements
-        private const val SPEED_TEST_SAMPLES = 3 // Number of speed test runs
+        private const val TEST_DURATION_MS = 30000L // 30 seconds max per test for high-speed networks
+        private const val BUFFER_SIZE = 65536 // 64KB buffer for optimal throughput
+        private const val PING_SAMPLES = 10
+        private const val PARALLEL_CONNECTIONS = 4 // Multiple parallel connections for max throughput
+        private const val MIN_TEST_DURATION_MS = 5000L // Minimum 5 seconds for accurate measurement
+        private const val SPEED_TEST_SAMPLES = 1 // Single optimized test per phase
     }
 
     data class TestEndpoint(
@@ -146,8 +159,13 @@ class NetworkSpeedTestService {
         _speedTestResult.postValue(
             _speedTestResult.value?.copy(
                 currentTestType = NetworkTestType.PING,
-                progress = 0.1f
-            ) ?: SpeedTestResult(currentTestType = NetworkTestType.PING, progress = 0.1f)
+                progress = 0.1f,
+                isTestRunning = true
+            ) ?: SpeedTestResult(
+                currentTestType = NetworkTestType.PING,
+                progress = 0.1f,
+                isTestRunning = true
+            )
         )
 
         return withContext(Dispatchers.IO) {
@@ -173,7 +191,14 @@ class NetworkSpeedTestService {
                     // Update progress
                     val progress = 0.1f + (i.toFloat() / PING_SAMPLES) * 0.23f
                     _speedTestResult.postValue(
-                        _speedTestResult.value?.copy(progress = progress)
+                        _speedTestResult.value?.copy(
+                            progress = progress,
+                            isTestRunning = true
+                        ) ?: SpeedTestResult(
+                            currentTestType = NetworkTestType.PING,
+                            progress = progress,
+                            isTestRunning = true
+                        )
                     )
 
                     delay(100) // Small delay between pings
@@ -240,35 +265,40 @@ class NetworkSpeedTestService {
         _speedTestResult.postValue(
             _speedTestResult.value?.copy(
                 currentTestType = NetworkTestType.DOWNLOAD,
-                progress = 0.33f
-            ) ?: SpeedTestResult(currentTestType = NetworkTestType.DOWNLOAD, progress = 0.33f)
+                progress = 0.33f,
+                isTestRunning = true
+            ) ?: SpeedTestResult(
+                currentTestType = NetworkTestType.DOWNLOAD,
+                progress = 0.33f,
+                isTestRunning = true
+            )
         )
 
         return withContext(Dispatchers.IO) {
+            // Use parallel connections for maximum throughput
             val downloadSpeeds = mutableListOf<Float>()
 
-            for (sample in 0 until SPEED_TEST_SAMPLES) {
-                try {
-                    // Try different endpoints for redundancy
-                    for (endpoint in TEST_ENDPOINTS) {
-                        if (endpoint.downloadUrl != null) {
-                            val speed = performSingleDownloadTest(endpoint, sample)
-                            if (speed > 0) {
-                                downloadSpeeds.add(speed)
-                                break
-                            }
-                        }
-                    }
-
-                    // Update progress
-                    val progress = 0.33f + ((sample + 1).toFloat() / SPEED_TEST_SAMPLES) * 0.33f
-                    _speedTestResult.postValue(
-                        _speedTestResult.value?.copy(progress = progress)
-                    )
-
-                } catch (e: Exception) {
-                    Log.w(TAG, "Download test sample $sample failed", e)
+            try {
+                // Run parallel download test for maximum speed
+                val speed = performParallelDownloadTest()
+                if (speed > 0) {
+                    downloadSpeeds.add(speed)
                 }
+
+                // Update progress
+                _speedTestResult.postValue(
+                    _speedTestResult.value?.copy(
+                        progress = 0.66f,
+                        isTestRunning = true
+                    ) ?: SpeedTestResult(
+                        currentTestType = NetworkTestType.DOWNLOAD,
+                        progress = 0.66f,
+                        isTestRunning = true
+                    )
+                )
+
+            } catch (e: Exception) {
+                Log.w(TAG, "Download test failed", e)
             }
 
             val avgDownloadSpeed = if (downloadSpeeds.isNotEmpty()) {
@@ -280,7 +310,12 @@ class NetworkSpeedTestService {
             _speedTestResult.postValue(
                 _speedTestResult.value?.copy(
                     downloadSpeed = avgDownloadSpeed,
-                    progress = 0.66f
+                    progress = 0.66f,
+                    isTestRunning = true
+                ) ?: SpeedTestResult(
+                    downloadSpeed = avgDownloadSpeed,
+                    progress = 0.66f,
+                    isTestRunning = true
                 )
             )
 
@@ -288,35 +323,73 @@ class NetworkSpeedTestService {
         }
     }
 
-    private fun performSingleDownloadTest(endpoint: TestEndpoint, sample: Int): Float {
-        return try {
-            val url = if (endpoint.name == "Cloudflare") {
-                URL("${endpoint.downloadUrl}$DOWNLOAD_SIZE_BYTES")
-            } else {
-                // For other endpoints, use a known large file
-                URL("https://www.gstatic.com/hostedimg/382a91be96472318_large")
+    private suspend fun performParallelDownloadTest(): Float = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        val totalBytesCounter = AtomicLong(0L)
+        val activeConnections = AtomicInteger(0)
+
+        try {
+            // Create multiple parallel download jobs
+            val downloadJobs = (1..PARALLEL_CONNECTIONS).map { connectionId ->
+                async {
+                    performHighSpeedDownload(connectionId, totalBytesCounter, activeConnections)
+                }
             }
 
+            // Wait for either all jobs to complete or minimum test duration
+            val results = downloadJobs.awaitAll()
+            val endTime = System.currentTimeMillis()
+            val timeTakenSeconds = (endTime - startTime) / 1000.0
+            val totalBytesRead = totalBytesCounter.get()
+
+            // Ensure minimum test duration for accurate measurement
+            val effectiveTime = maxOf(timeTakenSeconds, MIN_TEST_DURATION_MS / 1000.0)
+
+            if (totalBytesRead > 0 && effectiveTime > 0) {
+                val speedMbps = ((totalBytesRead * 8) / (effectiveTime * 1_000_000)).toFloat()
+                Log.d(TAG, "Parallel download: ${totalBytesRead / 1_000_000}MB in ${effectiveTime}s = ${speedMbps} Mbps")
+                speedMbps
+            } else {
+                0f
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Parallel download test failed", e)
+            0f
+        }
+    }
+
+    private suspend fun performHighSpeedDownload(
+        connectionId: Int,
+        totalBytesCounter: AtomicLong,
+        activeConnections: AtomicInteger
+    ): Long = withContext(Dispatchers.IO) {
+        var bytesRead = 0L
+        activeConnections.incrementAndGet()
+
+        try {
+            val url = URL("https://speed.cloudflare.com/__down?bytes=$DOWNLOAD_SIZE_BYTES")
             val connection = url.openConnection() as HttpURLConnection
+
+            // Optimized connection settings for high throughput
             connection.requestMethod = "GET"
-            connection.connectTimeout = 10000
-            connection.readTimeout = 30000
-            connection.setRequestProperty("User-Agent", "NetworkTelemetrySDK/1.0")
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.setRequestProperty("User-Agent", "SpeedTest/1.0")
+            connection.setRequestProperty("Accept-Encoding", "identity") // Disable compression
+            connection.setRequestProperty("Cache-Control", "no-cache")
+            connection.setRequestProperty("Connection", "keep-alive")
 
+            val inputStream = BufferedInputStream(connection.inputStream, BUFFER_SIZE)
+            val buffer = ByteArray(BUFFER_SIZE)
             val startTime = System.currentTimeMillis()
-            val expectedSize = connection.contentLength.toLong()
-            val inputStream: InputStream = BufferedInputStream(connection.inputStream)
 
-            val buffer = ByteArray(8192)
-            var totalBytesRead = 0L
-            var bytesRead: Int
+            var readBytes: Int
+            while (inputStream.read(buffer).also { readBytes = it } != -1) {
+                bytesRead += readBytes
+                totalBytesCounter.addAndGet(readBytes.toLong())
 
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                totalBytesRead += bytesRead
-
-                // Stop if we've reached our target size or timeout
-                if (totalBytesRead >= DOWNLOAD_SIZE_BYTES ||
-                    System.currentTimeMillis() - startTime > TEST_DURATION_MS) {
+                // Stop if test duration exceeded
+                if (System.currentTimeMillis() - startTime > TEST_DURATION_MS) {
                     break
                 }
             }
@@ -324,58 +397,54 @@ class NetworkSpeedTestService {
             inputStream.close()
             connection.disconnect()
 
-            val endTime = System.currentTimeMillis()
-            val timeTakenSeconds = (endTime - startTime) / 1000.0
+            Log.v(TAG, "Connection $connectionId downloaded: ${bytesRead / 1_000_000}MB")
 
-            // Verify we got meaningful data
-            if (totalBytesRead < 1000 || timeTakenSeconds < 0.1) {
-                Log.w(TAG, "Download test incomplete: ${totalBytesRead} bytes in ${timeTakenSeconds}s")
-                return 0f
-            }
-
-            val speedMbps = ((totalBytesRead * 8) / (timeTakenSeconds * 1_000_000)).toFloat()
-            Log.d(TAG, "Download sample $sample: ${totalBytesRead} bytes in ${timeTakenSeconds}s = ${speedMbps} Mbps")
-
-            speedMbps
         } catch (e: Exception) {
-            Log.e(TAG, "Download test failed for ${endpoint.name}", e)
-            0f
+            Log.w(TAG, "Download connection $connectionId failed: ${e.message}")
+        } finally {
+            activeConnections.decrementAndGet()
         }
+
+        bytesRead
     }
 
     private suspend fun runEnhancedUploadTest(): Float {
         _speedTestResult.postValue(
             _speedTestResult.value?.copy(
                 currentTestType = NetworkTestType.UPLOAD,
-                progress = 0.66f
-            ) ?: SpeedTestResult(currentTestType = NetworkTestType.UPLOAD, progress = 0.66f)
+                progress = 0.66f,
+                isTestRunning = true
+            ) ?: SpeedTestResult(
+                currentTestType = NetworkTestType.UPLOAD,
+                progress = 0.66f,
+                isTestRunning = true
+            )
         )
 
         return withContext(Dispatchers.IO) {
             val uploadSpeeds = mutableListOf<Float>()
 
-            for (sample in 0 until SPEED_TEST_SAMPLES) {
-                try {
-                    // Try endpoints that support upload
-                    for (endpoint in TEST_ENDPOINTS) {
-                        if (endpoint.uploadUrl != null) {
-                            val speed = performSingleUploadTest(endpoint, sample)
-                            if (speed > 0) {
-                                uploadSpeeds.add(speed)
-                                break
-                            }
-                        }
-                    }
-
-                    // Update progress
-                    val progress = 0.66f + ((sample + 1).toFloat() / SPEED_TEST_SAMPLES) * 0.34f
-                    _speedTestResult.postValue(
-                        _speedTestResult.value?.copy(progress = progress)
-                    )
-
-                } catch (e: Exception) {
-                    Log.w(TAG, "Upload test sample $sample failed", e)
+            try {
+                // Use parallel upload test for maximum speed
+                val speed = performParallelUploadTest()
+                if (speed > 0) {
+                    uploadSpeeds.add(speed)
                 }
+
+                // Update progress
+                _speedTestResult.postValue(
+                    _speedTestResult.value?.copy(
+                        progress = 1.0f,
+                        isTestRunning = true
+                    ) ?: SpeedTestResult(
+                        currentTestType = NetworkTestType.UPLOAD,
+                        progress = 1.0f,
+                        isTestRunning = true
+                    )
+                )
+
+            } catch (e: Exception) {
+                Log.w(TAG, "Upload test failed", e)
             }
 
             val avgUploadSpeed = if (uploadSpeeds.isNotEmpty()) {
@@ -388,69 +457,106 @@ class NetworkSpeedTestService {
         }
     }
 
-    private fun performSingleUploadTest(endpoint: TestEndpoint, sample: Int): Float {
-        return try {
-            val url = URL(endpoint.uploadUrl!!)
+    private suspend fun performParallelUploadTest(): Float = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        val totalBytesCounter = AtomicLong(0L)
+        val activeConnections = AtomicInteger(0)
+
+        try {
+            // Create multiple parallel upload jobs
+            val uploadJobs = (1..PARALLEL_CONNECTIONS).map { connectionId ->
+                async {
+                    performHighSpeedUpload(connectionId, totalBytesCounter, activeConnections)
+                }
+            }
+
+            // Wait for either all jobs to complete or minimum test duration
+            val results = uploadJobs.awaitAll()
+            val endTime = System.currentTimeMillis()
+            val timeTakenSeconds = (endTime - startTime) / 1000.0
+            val totalBytesWritten = totalBytesCounter.get()
+
+            // Ensure minimum test duration for accurate measurement
+            val effectiveTime = maxOf(timeTakenSeconds, MIN_TEST_DURATION_MS / 1000.0)
+
+            if (totalBytesWritten > 0 && effectiveTime > 0) {
+                val speedMbps = ((totalBytesWritten * 8) / (effectiveTime * 1_000_000)).toFloat()
+                Log.d(TAG, "Parallel upload: ${totalBytesWritten / 1_000_000}MB in ${effectiveTime}s = ${speedMbps} Mbps")
+                speedMbps
+            } else {
+                0f
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Parallel upload test failed", e)
+            0f
+        }
+    }
+
+    private suspend fun performHighSpeedUpload(
+        connectionId: Int,
+        totalBytesCounter: AtomicLong,
+        activeConnections: AtomicInteger
+    ): Long = withContext(Dispatchers.IO) {
+        var bytesWritten = 0L
+        activeConnections.incrementAndGet()
+
+        try {
+            val url = URL("https://speed.cloudflare.com/__up")
             val connection = url.openConnection() as HttpURLConnection
+
+            // Optimized connection settings for high throughput
             connection.requestMethod = "POST"
             connection.doOutput = true
-            connection.connectTimeout = 10000
-            connection.readTimeout = 30000
+            connection.connectTimeout = 15000
+            connection.readTimeout = 60000
+            connection.setRequestProperty("User-Agent", "SpeedTest/1.0")
             connection.setRequestProperty("Content-Type", "application/octet-stream")
-            connection.setRequestProperty("User-Agent", "NetworkTelemetrySDK/1.0")
+            connection.setRequestProperty("Cache-Control", "no-cache")
+            connection.setRequestProperty("Connection", "keep-alive")
 
-            val startTime = System.currentTimeMillis()
-            val outputStream: OutputStream = connection.outputStream
+            val outputStream = BufferedOutputStream(connection.outputStream, BUFFER_SIZE)
+            val buffer = ByteArray(BUFFER_SIZE)
 
-            // Generate random data for more realistic upload test
-            val buffer = ByteArray(8192)
+            // Pre-generate random data for upload
             for (i in buffer.indices) {
                 buffer[i] = (Math.random() * 256).toInt().toByte()
             }
 
-            var totalBytesWritten = 0L
+            val startTime = System.currentTimeMillis()
 
-            while (totalBytesWritten < UPLOAD_SIZE_BYTES) {
-                val bytesToWrite = minOf(buffer.size, (UPLOAD_SIZE_BYTES - totalBytesWritten).toInt())
+            while (bytesWritten < UPLOAD_SIZE_BYTES) {
+                val bytesToWrite = minOf(buffer.size, (UPLOAD_SIZE_BYTES - bytesWritten).toInt())
                 outputStream.write(buffer, 0, bytesToWrite)
-                outputStream.flush()
-                totalBytesWritten += bytesToWrite
+                bytesWritten += bytesToWrite
+                totalBytesCounter.addAndGet(bytesToWrite.toLong())
 
-                // Check timeout
-                if (System.currentTimeMillis() - startTime > TEST_DURATION_MS) break
+                // Stop if test duration exceeded
+                if (System.currentTimeMillis() - startTime > TEST_DURATION_MS) {
+                    break
+                }
             }
 
+            outputStream.flush()
             outputStream.close()
 
             // Verify response
             val responseCode = connection.responseCode
-            val responseMessage = connection.responseMessage
-            val endTime = System.currentTimeMillis()
-
             connection.disconnect()
 
-            // Check for successful upload
             if (responseCode !in 200..299) {
-                Log.w(TAG, "Upload failed with response: $responseCode $responseMessage")
-                return 0f
+                Log.w(TAG, "Upload connection $connectionId failed with response: $responseCode")
+                return@withContext 0L
             }
 
-            val timeTakenSeconds = (endTime - startTime) / 1000.0
+            Log.v(TAG, "Connection $connectionId uploaded: ${bytesWritten / 1_000_000}MB")
 
-            // Verify we uploaded meaningful data
-            if (totalBytesWritten < 1000 || timeTakenSeconds < 0.1) {
-                Log.w(TAG, "Upload test incomplete: ${totalBytesWritten} bytes in ${timeTakenSeconds}s")
-                return 0f
-            }
-
-            val speedMbps = ((totalBytesWritten * 8) / (timeTakenSeconds * 1_000_000)).toFloat()
-            Log.d(TAG, "Upload sample $sample: ${totalBytesWritten} bytes in ${timeTakenSeconds}s = ${speedMbps} Mbps")
-
-            speedMbps
         } catch (e: Exception) {
-            Log.e(TAG, "Upload test failed for ${endpoint.name}", e)
-            0f
+            Log.w(TAG, "Upload connection $connectionId failed: ${e.message}")
+        } finally {
+            activeConnections.decrementAndGet()
         }
+
+        bytesWritten
     }
 
     fun cleanup() {

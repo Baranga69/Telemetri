@@ -24,6 +24,14 @@ import com.commerin.telemetri.ui.components.charts.SpeedUnit
 import com.commerin.telemetri.ui.viewmodels.AutomotiveViewModel
 import java.util.Locale
 
+// Data class for vehicle testing statistics
+data class SpeedStatistics(
+    val maxSpeed: Float,
+    val avgSpeed: Float,
+    val sampleCount: Int,
+    val totalDistance: Float
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AutomotiveUseCaseScreen(
@@ -32,32 +40,63 @@ fun AutomotiveUseCaseScreen(
 ) {
     val isCollecting by viewModel.isCollecting.observeAsState(false)
     val locationData by viewModel.locationData.observeAsState()
-    val sensorData by viewModel.sensorData.observeAsState()
-    val audioData by viewModel.audioData.observeAsState()
-    val networkData by viewModel.networkData.observeAsState()
-    val performanceData by viewModel.performanceData.observeAsState()
     val motionData by viewModel.motionData.observeAsState()
 
     // Speed recording state
     var isSpeedRecording by remember { mutableStateOf(false) }
     var speedUnit by remember { mutableStateOf(SpeedUnit.KPH) }
 
-    // Enhanced speed calculation using sensor fusion
+    // Enhanced speed calculation using sensor fusion with improved accuracy
     val currentSpeed = remember(motionData, locationData) {
         val motion = motionData
         val location = locationData
 
         when {
-            // Prioritize sensor-based speed when in vehicle and data is available
-            motion?.activityType == ActivityType.IN_VEHICLE && motion.vehicleSpeed > 0f -> {
+            // Enhanced vehicle detection with multiple criteria
+            motion?.activityType == ActivityType.IN_VEHICLE && motion.vehicleSpeed > 2f -> {
+                // Use sensor speed for in-vehicle detection with minimum threshold
                 motion.vehicleSpeed
             }
-            // Fall back to GPS speed if sensor data unavailable
+            // High-accuracy GPS speed with confidence check
+            location?.speed != null && location.speed!! > 0.5f &&
+            location.accuracy != null && location.accuracy!! < 10f -> {
+                // Only use GPS if accuracy is good (< 10 meters) and speed > 0.5 m/s
+                location.speed!!
+            }
+            // Fallback to any available GPS speed for low speeds
             location?.speed != null && location.speed!! > 0f -> {
                 location.speed!!
             }
             // Default to 0 if no reliable speed data
             else -> 0f
+        }
+    }
+
+    // Add speed statistics for vehicle testing
+    val speedStats = remember { mutableStateOf<SpeedStatistics?>(null) }
+
+    // Calculate running statistics when collecting data
+    LaunchedEffect(currentSpeed, isCollecting) {
+        if (isCollecting && currentSpeed > 0f) {
+            val current = speedStats.value
+            if (current == null) {
+                speedStats.value = SpeedStatistics(
+                    maxSpeed = currentSpeed,
+                    avgSpeed = currentSpeed,
+                    sampleCount = 1,
+                    totalDistance = 0f
+                )
+            } else {
+                val newSampleCount = current.sampleCount + 1
+                val newAvgSpeed = ((current.avgSpeed * current.sampleCount) + currentSpeed) / newSampleCount
+                speedStats.value = current.copy(
+                    maxSpeed = maxOf(current.maxSpeed, currentSpeed),
+                    avgSpeed = newAvgSpeed,
+                    sampleCount = newSampleCount
+                )
+            }
+        } else if (!isCollecting) {
+            speedStats.value = null // Reset when not collecting
         }
     }
 
@@ -170,6 +209,46 @@ fun AutomotiveUseCaseScreen(
                 )
             }
 
+            // Speed Statistics Card for Vehicle Testing
+            speedStats.value?.let { stats ->
+                item {
+                    TelemetryDataCard(
+                        title = "Speed Test Statistics",
+                        icon = Icons.Default.Speed,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                    ) {
+                        val unitLabel = if (speedUnit == SpeedUnit.KPH) "km/h" else "mph"
+                        val convertedMaxSpeed = if (speedUnit == SpeedUnit.KPH) stats.maxSpeed * 3.6f else stats.maxSpeed * 2.237f
+                        val convertedAvgSpeed = if (speedUnit == SpeedUnit.KPH) stats.avgSpeed * 3.6f else stats.avgSpeed * 2.237f
+
+                        DataRow("Max Speed", String.format(Locale.US, "%.1f %s", convertedMaxSpeed, unitLabel))
+                        DataRow("Avg Speed", String.format(Locale.US, "%.1f %s", convertedAvgSpeed, unitLabel))
+                        DataRow("Data Points", "${stats.sampleCount}")
+                        DataRow("Test Duration", "${(stats.sampleCount * 1).coerceAtMost(3600)} seconds") // Estimate based on 1-second updates
+                    }
+                }
+            }
+
+            // Motion Data for Sensor-Based Speed
+            item {
+                TelemetryDataCard(
+                    title = "Motion Analysis",
+                    icon = Icons.Default.DirectionsCar,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                ) {
+                    motionData?.let { motion ->
+                        DataRow("Activity", motion.activityType.name)
+                        DataRow("Confidence", String.format(Locale.US, "%.1f%%", motion.confidence * 100))
+                        DataRow("Sensor Speed", "${String.format(Locale.US, "%.1f", motion.vehicleSpeed)} m/s")
+                        DataRow("Acceleration", String.format(Locale.US, "%.2f m/s²", motion.accelerationMagnitude))
+                        DataRow("Gyroscope", String.format(Locale.US, "%.2f rad/s", motion.gyroscopeMagnitude))
+                    } ?: Text(
+                        "No motion data available",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Location Data
             item {
                 TelemetryDataCard(
@@ -185,122 +264,6 @@ fun AutomotiveUseCaseScreen(
                         DataRow("Provider", location.provider)
                     } ?: Text(
                         "No location data available",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Network Performance Gauges
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        Text(
-                            text = "Network Performance",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(bottom = 20.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            SignalStrengthGauge(
-                                signalStrength = networkData?.signalStrength ?: -75,
-                                modifier = Modifier.weight(1f),
-                                title = "Signal Strength"
-                            )
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            NetworkSpeedGauge(
-                                speedBps = networkData?.connectionSpeed ?: 10_000_000L,
-                                modifier = Modifier.weight(1f),
-                                title = "Connection Speed"
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Sensor Data
-            item {
-                TelemetryDataCard(
-                    title = "Sensor Data",
-                    icon = Icons.Default.Sensors,
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                ) {
-                    sensorData?.let { sensors ->
-                        Text(
-                            "Active Sensors: ${sensors.size}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        sensors.take(3).forEach { sensor ->
-                            DataRow(
-                                sensor.sensorType.name,
-                                "X: ${String.format(Locale.US, "%.2f", sensor.x)}"
-                            )
-                        }
-                        if (sensors.size > 3) {
-                            Text(
-                                "+ ${sensors.size - 3} more sensors",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } ?: Text(
-                        "No sensor data available",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Audio Data
-            item {
-                TelemetryDataCard(
-                    title = "Audio Environment",
-                    icon = Icons.Default.Mic,
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-                ) {
-                    audioData?.let { audio ->
-                        DataRow("Sound Level", "${String.format(Locale.US, "%.1f", audio.decibels)} dB")
-                        DataRow("Dominant Frequency", "${String.format(Locale.US, "%.0f", audio.dominantFrequency)} Hz")
-                        DataRow("Classification", audio.soundClassification.name)
-                        DataRow("Voice Detected", if (audio.isVoiceDetected) "Yes" else "No")
-                    } ?: Text(
-                        "No audio data available",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Performance Data
-            item {
-                TelemetryDataCard(
-                    title = "System Performance",
-                    icon = Icons.Default.Speed,
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                ) {
-                    performanceData?.let { performance ->
-                        DataRow("CPU Usage", "${String.format(Locale.US, "%.1f", performance.cpuUsage)}%")
-                        DataRow("Memory", "${performance.memoryUsage.appMemoryUsage / 1024 / 1024} MB")
-                        DataRow("Battery", "${performance.batteryInfo.level}%")
-                        DataRow("Temperature", "${String.format(Locale.US, "%.1f", performance.batteryInfo.temperature)}°C")
-                    } ?: Text(
-                        "No performance data available",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

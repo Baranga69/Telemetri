@@ -383,13 +383,13 @@ class MotionAnalysisEngine(private val context: Context) : SensorEventListener {
         // Only update if we have recent step data and sufficient time has passed
         if (currentTime - lastStepUpdateTime > STEP_UPDATE_INTERVAL_MS && stepCount > 0) {
             // Create quick motion data update for step count changes
-            val quickMotionData = _motionData.value?.copy(
-                stepCount = stepCount,
-                stepFrequency = calculateStepFrequency(),
-                timestamp = currentTime
-            )
-
-            if (quickMotionData != null) {
+            val currentMotionData = _motionData.value
+            if (currentMotionData != null) {
+                val quickMotionData = currentMotionData.copy(
+                    stepCount = stepCount,
+                    stepFrequency = calculateStepFrequency(),
+                    timestamp = currentTime
+                )
                 _motionData.postValue(quickMotionData)
             }
 

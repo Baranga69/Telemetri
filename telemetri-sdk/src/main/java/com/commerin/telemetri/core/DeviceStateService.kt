@@ -172,25 +172,64 @@ class DeviceStateService(private val context: Context) {
         }
 
         return try {
-            val activeNetwork = connectivityManager.activeNetwork ?: return "No connection"
-            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return "Unknown"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // API 23+ - Use modern NetworkCapabilities approach
+                val activeNetwork = connectivityManager.activeNetwork ?: return "No connection"
+                val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return "Unknown"
 
-            when {
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasPhoneStatePermission()) {
-                        when (telephonyManager.dataNetworkType) {
-                            TelephonyManager.NETWORK_TYPE_NR -> "5G"
-                            TelephonyManager.NETWORK_TYPE_LTE -> "4G LTE"
-                            else -> "Cellular"
+                when {
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && hasPhoneStatePermission()) {
+                            when (telephonyManager.dataNetworkType) {
+                                TelephonyManager.NETWORK_TYPE_NR -> "5G"
+                                TelephonyManager.NETWORK_TYPE_LTE -> "4G LTE"
+                                else -> "Cellular"
+                            }
+                        } else {
+                            "Cellular"
                         }
-                    } else {
-                        "Cellular"
                     }
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "Bluetooth"
+                    else -> "Unknown"
                 }
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "Bluetooth"
-                else -> "Unknown"
+            } else {
+                // API 21-22 - Use legacy NetworkInfo approach
+                @Suppress("DEPRECATION")
+                val activeNetworkInfo = connectivityManager.activeNetworkInfo
+                    ?: return "No connection"
+
+                if (!activeNetworkInfo.isConnected) {
+                    return "No connection"
+                }
+
+                @Suppress("DEPRECATION")
+                when (activeNetworkInfo.type) {
+                    ConnectivityManager.TYPE_WIFI -> "WiFi"
+                    ConnectivityManager.TYPE_MOBILE -> {
+                        if (hasPhoneStatePermission()) {
+                            @Suppress("DEPRECATION")
+                            when (telephonyManager.networkType) {
+                                TelephonyManager.NETWORK_TYPE_LTE -> "4G LTE"
+                                TelephonyManager.NETWORK_TYPE_HSPAP,
+                                TelephonyManager.NETWORK_TYPE_HSPA,
+                                TelephonyManager.NETWORK_TYPE_HSUPA,
+                                TelephonyManager.NETWORK_TYPE_HSDPA,
+                                TelephonyManager.NETWORK_TYPE_UMTS -> "3G"
+                                TelephonyManager.NETWORK_TYPE_EDGE,
+                                TelephonyManager.NETWORK_TYPE_GPRS -> "2G"
+                                else -> "Cellular"
+                            }
+                        } else {
+                            "Cellular"
+                        }
+                    }
+                    ConnectivityManager.TYPE_ETHERNET -> "Ethernet"
+                    ConnectivityManager.TYPE_BLUETOOTH -> "Bluetooth"
+                    ConnectivityManager.TYPE_VPN -> "VPN"
+                    else -> "Unknown"
+                }
             }
         } catch (e: SecurityException) {
             Log.w(TAG, "SecurityException getting network type: ${e.message}")
@@ -232,9 +271,16 @@ class DeviceStateService(private val context: Context) {
         }
 
         return try {
-            val activeNetwork = connectivityManager.activeNetwork
-            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val activeNetwork = connectivityManager.activeNetwork
+                val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            } else {
+                @Suppress("DEPRECATION")
+                val activeNetworkInfo = connectivityManager.activeNetworkInfo
+                activeNetworkInfo?.type == ConnectivityManager.TYPE_WIFI &&
+                activeNetworkInfo.isConnected
+            }
         } catch (e: SecurityException) {
             Log.w(TAG, "SecurityException checking WiFi state: ${e.message}")
             false

@@ -251,97 +251,95 @@ fun PermissionsScreen(
         )
     )
 
-    Column(
+    // Replace the nested scrollable layout with a single LazyColumn that contains all content in a unified scrollable surface
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
-        TelemetryPermissionsHeader(
-            grantedCount = permissionStates.count { it.value is PermissionState.Granted },
-            totalCount = telemetryPermissions.size,
-            activeServices = telemetryServices.count { it.value }
-        )
+        item {
+            TelemetryPermissionsHeader(
+                grantedCount = permissionStates.count { it.value is PermissionState.Granted },
+                totalCount = telemetryPermissions.size,
+                activeServices = telemetryServices.count { it.value }
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Use case selection
-        UseCaseSelection(
-            useCases = telemetryUseCases,
-            selectedUseCase = selectedUseCase,
-            onUseCaseSelected = { selectedUseCase = it },
-            permissionStates = permissionStates,
-            onStartUseCase = { useCase ->
-                when (useCase.name) {
-                    "Automotive Telemetry" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.automotiveUseCase())
-                        telemetriManager.startTelemetryCollection()
+        // Use case selection (now non-scrollable)
+        item {
+            UseCaseSelectionOptimized(
+                useCases = telemetryUseCases,
+                selectedUseCase = selectedUseCase,
+                onUseCaseSelected = { selectedUseCase = it },
+                permissionStates = permissionStates,
+                onStartUseCase = { useCase ->
+                    when (useCase.name) {
+                        "Automotive Telemetry" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.automotiveUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
+                        "Fitness Tracking" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.fitnessTrackingUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
+                        "Environmental Monitoring" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.environmentalMonitoringUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
+                        "Security Monitoring" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.securityMonitoringUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
+                        "Battery Saver" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.batterySaverUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
+                        "Network Diagnostics" -> {
+                            telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.networkDiagnosticsUseCase())
+                            telemetriManager.startTelemetryCollection()
+                        }
                     }
-                    "Fitness Tracking" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.fitnessTrackingUseCase())
-                        telemetriManager.startTelemetryCollection()
-                    }
-                    "Environmental Monitoring" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.environmentalMonitoringUseCase())
-                        telemetriManager.startTelemetryCollection()
-                    }
-                    "Security Monitoring" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.securityMonitoringUseCase())
-                        telemetriManager.startTelemetryCollection()
-                    }
-                    "Battery Saver" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.batterySaverUseCase())
-                        telemetriManager.startTelemetryCollection()
-                    }
-                    "Network Diagnostics" -> {
-                        telemetriManager.configureTelemetry(TelemetriManager.ConfigPresets.networkDiagnosticsUseCase())
-                        telemetriManager.startTelemetryCollection()
-                    }
+                    onPermissionsGranted()
                 }
-                onPermissionsGranted()
-            }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
+            )
+        }
 
         // Error display
         showError?.let { error ->
-            ErrorCard(
-                error = error,
-                onDismiss = { showError = null }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Permissions list
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(telemetryPermissions) { permissionInfo ->
-                PermissionCard(
-                    permissionInfo = permissionInfo,
-                    state = permissionStates[permissionInfo.permission] ?: PermissionState.NotRequested,
-                    onRequestPermission = {
-                        requestPermissionByCategory(permissionInfo.category, permissionHelper)
-                    },
-                    isHighlighted = selectedUseCase?.let { useCase ->
-                        telemetryUseCases.find { it.name == useCase }?.requiredPermissions?.contains(permissionInfo.permission) == true
-                    } ?: false
+            item {
+                ErrorCard(
+                    error = error,
+                    onDismiss = { showError = null }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Permissions list (now integrated into the main scroll)
+        items(telemetryPermissions) { permissionInfo ->
+            PermissionCard(
+                permissionInfo = permissionInfo,
+                state = permissionStates[permissionInfo.permission] ?: PermissionState.NotRequested,
+                onRequestPermission = {
+                    requestPermissionByCategory(permissionInfo.category, permissionHelper)
+                },
+                isHighlighted = selectedUseCase?.let { useCase ->
+                    telemetryUseCases.find { it.name == useCase }?.requiredPermissions?.contains(permissionInfo.permission) == true
+                } ?: false
+            )
+        }
 
-        // Action buttons
-        PermissionActionButtons(
-            allGranted = permissionHelper.areAllPermissionsGranted(),
-            onRequestAll = {
-                permissionHelper.requestAllPermissions()
-            },
-            onContinue = onPermissionsGranted
-        )
+        // Action buttons at the bottom
+        item {
+            PermissionActionButtons(
+                allGranted = permissionHelper.areAllPermissionsGranted(),
+                onRequestAll = {
+                    permissionHelper.requestAllPermissions()
+                },
+                onContinue = onPermissionsGranted
+            )
+        }
     }
 
     // Cleanup
@@ -353,7 +351,7 @@ fun PermissionsScreen(
 }
 
 @Composable
-private fun UseCaseSelection(
+private fun UseCaseSelectionOptimized(
     useCases: List<UseCaseInfo>,
     selectedUseCase: String?,
     onUseCaseSelected: (String?) -> Unit,
@@ -383,11 +381,10 @@ private fun UseCaseSelection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 200.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(useCases) { useCase ->
+            // Directly show the selected use case with its details
+            selectedUseCase?.let { useCaseName ->
+                val useCase = useCases.find { it.name == useCaseName }
+                if (useCase != null) {
                     val hasRequiredPermissions = useCase.requiredPermissions.all { permission ->
                         permissionStates[permission] is PermissionState.Granted
                     }
@@ -395,18 +392,12 @@ private fun UseCaseSelection(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(
-                                if (selectedUseCase == useCase.name) {
-                                    Modifier.padding(2.dp)
-                                } else Modifier
-                            ),
+                            .padding(2.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (selectedUseCase == useCase.name) {
-                                useCase.color.copy(alpha = 0.1f)
-                            } else MaterialTheme.colorScheme.surface
+                            containerColor = useCase.color.copy(alpha = 0.1f)
                         ),
                         onClick = {
-                            onUseCaseSelected(if (selectedUseCase == useCase.name) null else useCase.name)
+                            onUseCaseSelected(null) // Deselect use case
                         }
                     ) {
                         Row(
@@ -468,6 +459,87 @@ private fun UseCaseSelection(
                         }
                     }
                 }
+            } ?: run {
+                // If no use case is selected, show all available use cases
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    useCases.forEach { useCase ->
+                        val hasRequiredPermissions = useCase.requiredPermissions.all { permission ->
+                            permissionStates[permission] is PermissionState.Granted
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selectedUseCase == useCase.name) {
+                                    useCase.color.copy(alpha = 0.1f)
+                            } else MaterialTheme.colorScheme.surface
+                        ),
+                            onClick = {
+                                onUseCaseSelected(if (selectedUseCase == useCase.name) null else useCase.name)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = useCase.icon,
+                                    contentDescription = null,
+                                    tint = useCase.color,
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = useCase.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "${useCase.requiredPermissions.size} permissions required",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (hasRequiredPermissions && useCase.requiredPermissions.isNotEmpty()) {
+                                    Button(
+                                        onClick = { onStartUseCase(useCase) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = useCase.color),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text(
+                                            text = "Start",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                } else if (useCase.requiredPermissions.isEmpty()) {
+                                    Button(
+                                        onClick = { onStartUseCase(useCase) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = useCase.color),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text(
+                                            text = "Start",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = "Permissions needed",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -480,7 +552,8 @@ private fun TelemetryPermissionsHeader(
     activeServices: Int
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
+            .padding(top =15.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {

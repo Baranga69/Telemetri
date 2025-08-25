@@ -3,6 +3,7 @@ package com.commerin.telemetri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -10,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
@@ -22,6 +24,7 @@ import com.commerin.telemetri.ui.screens.home.HomeScreen
 import com.commerin.telemetri.ui.screens.permissions.PermissionsScreen
 import com.commerin.telemetri.ui.screens.usecases.*
 import com.commerin.telemetri.ui.theme.TelemetriTheme
+import com.commerin.telemetri.ui.theme.ThemeState
 import com.commerin.telemetri.utils.PermissionUtils
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -33,7 +36,11 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            TelemetriTheme {
+            // Create theme state that can be toggled
+            val systemInDarkTheme = isSystemInDarkTheme()
+            val themeState = remember { ThemeState(systemInDarkTheme) }
+
+            TelemetriTheme(themeState = themeState) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -87,52 +94,61 @@ private fun TelemetryApp() {
                     )
                 }
 
-                composable("usecase/network_demo") {
-                    NetworkTelemetryDemoScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
-                        }
-                    )
-                }
+                composable("usecase/{useCaseId}") { backStackEntry ->
+                    val useCaseId = backStackEntry.arguments?.getString("useCaseId") ?: "automotive"
 
-                composable("usecase/automotive") {
-                    AutomotiveUseCaseScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
+                    when (useCaseId) {
+                        "network_demo" -> {
+                            NetworkTelemetryDemoScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
                         }
-                    )
-                }
-
-                composable("usecase/fitness") {
-                    FitnessUseCaseScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
+                        "automotive" -> {
+                            AutomotiveUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
                         }
-                    )
-                }
-
-                composable("usecase/environmental") {
-                    EnvironmentalUseCaseScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
+                        "fitness" -> {
+                            FitnessUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
                         }
-                    )
-                }
-
-                composable("usecase/security") {
-                    SecurityUseCaseScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
+                        "environmental" -> {
+                            EnvironmentalUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
                         }
-                    )
-                }
-
-                composable("usecase/battery_saver") {
-                    BatterySaverUseCaseScreen(
-                        onBackPressed = {
-                            navController.navigateUp()
+                        "security" -> {
+                            SecurityUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
                         }
-                    )
+                        "battery_saver" -> {
+                            BatterySaverUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
+                        }
+                        else -> {
+                            // Default to automotive use case
+                            AutomotiveUseCaseScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -153,7 +169,7 @@ private fun LoadingScreen() {
             // Simple loading indicator
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
             }

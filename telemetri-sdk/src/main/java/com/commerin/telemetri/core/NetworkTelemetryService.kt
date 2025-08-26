@@ -579,4 +579,45 @@ class NetworkTelemetryService(private val context: Context) {
         stopNetworkMonitoring()
         scope.cancel()
     }
+
+    // =====================================
+    // Power Management Methods
+    // =====================================
+
+    private var wasPausedForPowerSaving = false
+    private var wasMonitoringBeforePause = false
+
+    /**
+     * Pause network telemetry for power saving
+     */
+    fun pauseForPowerSaving() {
+        if (!isMonitoring) {
+            Log.d(TAG, "Network telemetry not running - nothing to pause")
+            return
+        }
+
+        Log.d(TAG, "Pausing network telemetry for power saving")
+        wasMonitoringBeforePause = isMonitoring
+        wasPausedForPowerSaving = true
+        stopNetworkMonitoring()
+    }
+
+    /**
+     * Resume network telemetry from power saving mode
+     */
+    fun resumeFromPowerSaving() {
+        if (!wasPausedForPowerSaving) {
+            Log.d(TAG, "Network telemetry was not paused for power saving")
+            return
+        }
+
+        Log.d(TAG, "Resuming network telemetry from power saving")
+        wasPausedForPowerSaving = false
+
+        if (wasMonitoringBeforePause) {
+            startNetworkMonitoring()
+        }
+
+        wasMonitoringBeforePause = false
+    }
 }

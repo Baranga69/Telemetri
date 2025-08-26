@@ -460,6 +460,47 @@ class PerformanceTelemetryService(private val context: Context) {
         return memInfo.totalMem
     }
 
+    // =====================================
+    // Power Management Methods
+    // =====================================
+
+    private var wasPausedForPowerSaving = false
+    private var wasMonitoringBeforePause = false
+
+    /**
+     * Pause performance telemetry for power saving
+     */
+    fun pauseForPowerSaving() {
+        if (!isMonitoring) {
+            Log.d(TAG, "Performance telemetry not running - nothing to pause")
+            return
+        }
+
+        Log.d(TAG, "Pausing performance telemetry for power saving")
+        wasMonitoringBeforePause = isMonitoring
+        wasPausedForPowerSaving = true
+        stopPerformanceMonitoring()
+    }
+
+    /**
+     * Resume performance telemetry from power saving mode
+     */
+    fun resumeFromPowerSaving() {
+        if (!wasPausedForPowerSaving) {
+            Log.d(TAG, "Performance telemetry was not paused for power saving")
+            return
+        }
+
+        Log.d(TAG, "Resuming performance telemetry from power saving")
+        wasPausedForPowerSaving = false
+
+        if (wasMonitoringBeforePause) {
+            startPerformanceMonitoring()
+        }
+
+        wasMonitoringBeforePause = false
+    }
+
     fun cleanup() {
         stopPerformanceMonitoring()
         scope.cancel()

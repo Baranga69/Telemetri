@@ -371,7 +371,7 @@ class SensorService(private val context: Context) {
     /**
      * Configure sensor sampling rates dynamically
      */
-    fun setSensorDelay(sensorType: SensorType, delay: Int): Boolean {
+    fun setSensorDelay(sensorType: SensorType): Boolean {
         if (!activeSensors.containsKey(sensorType)) {
             Log.w(TAG, "Cannot set delay for inactive sensor: ${sensorType.name}")
             return false
@@ -379,7 +379,7 @@ class SensorService(private val context: Context) {
 
         // Restart the sensor with new delay
         stopIndividualSensor(sensorType)
-        return startIndividualSensor(sensorType, delay)
+        return startIndividualSensor(sensorType)
     }
 
     /**
@@ -401,35 +401,154 @@ class SensorService(private val context: Context) {
         Log.d(TAG, "Reset to default sensor configuration")
     }
 
-    // Helper methods for individual sensor management
-    private fun startIndividualSensor(sensorType: SensorType, customDelay: Int? = null): Boolean {
+    // =====================================
+    // Power Management Methods
+    // =====================================
+
+    private var currentSamplingRate = SensorSamplingRate.MEDIUM
+    private var originalEnabledSensors = mutableSetOf<SensorType>()
+    private var isPowerSavingMode = false
+
+    /**
+     * Update sampling rate for power optimization
+     */
+    fun updateSamplingRate(newRate: SensorSamplingRate) {
+        if (currentSamplingRate == newRate) return
+
+        Log.d(TAG, "Updating sensor sampling rate from $currentSamplingRate to $newRate")
+        currentSamplingRate = newRate
+
+        if (isServiceRunning) {
+            // Re-register sensors with new sampling rate
+            reregisterSensorsWithNewRate()
+        }
+    }
+
+    /**
+     * Update enabled sensors for power optimization
+     */
+    fun updateEnabledSensors(newEnabledSensors: Set<AdaptivePowerManager.SensorType>) {
+        // Convert AdaptivePowerManager.SensorType to our SensorType
+        val convertedSensors = newEnabledSensors.mapNotNull { powerSensorType ->
+            when (powerSensorType) {
+                AdaptivePowerManager.SensorType.ACCELEROMETER -> SensorType.ACCELEROMETER
+                AdaptivePowerManager.SensorType.GYROSCOPE -> SensorType.GYROSCOPE
+                AdaptivePowerManager.SensorType.MAGNETOMETER -> SensorType.MAGNETOMETER
+                AdaptivePowerManager.SensorType.GRAVITY -> SensorType.GRAVITY
+                AdaptivePowerManager.SensorType.LINEAR_ACCELERATION -> SensorType.LINEAR_ACCELERATION
+                AdaptivePowerManager.SensorType.PROXIMITY -> SensorType.PROXIMITY
+                AdaptivePowerManager.SensorType.LIGHT -> SensorType.LIGHT
+            }
+        }.toSet()
+
+        Log.d(TAG, "Updating enabled sensors. Previous: ${enabledSensorTypes.size}, New: ${convertedSensors.size}")
+
+        if (isServiceRunning) {
+            // Store original sensors if this is the first power optimization
+            if (!isPowerSavingMode) {
+                originalEnabledSensors = enabledSensorTypes.toMutableSet()
+            }
+
+            // Stop sensors not in the new set
+            val sensorsToStop = enabledSensorTypes - convertedSensors
+            sensorsToStop.forEach { sensorType ->
+                stopIndividualSensor(sensorType)
+            }
+
+            // Start new sensors
+            val sensorsToStart = convertedSensors - enabledSensorTypes
+            sensorsToStart.forEach { sensorType ->
+                startIndividualSensor(sensorType)
+            }
+        }
+
+        enabledSensorTypes.clear()
+        enabledSensorTypes.addAll(convertedSensors)
+        isPowerSavingMode = true
+    }
+
+    /**
+     * Restore original sensor configuration
+     */
+    fun restoreOriginalSensors() {
+        if (!isPowerSavingMode) return
+
+        Log.d(TAG, "Restoring original sensor configuration")
+        isPowerSavingMode = false
+
+        if (isServiceRunning) {
+            // Stop all current sensors
+            stopAllSensors()
+
+            // Restore original configuration
+            enabledSensorTypes.clear()
+            enabledSensorTypes.addAll(originalEnabledSensors)
+
+            // Restart with original configuration
+            initializeAllSensors()
+        } else {
+            enabledSensorTypes.clear()
+            enabledSensorTypes.addAll(originalEnabledSensors)
+        }
+    }
+
+    private fun reregisterSensorsWithNewRate() {
+        Log.d(TAG, "Re-registering sensors with new sampling rate")
+
+        // Stop all sensors
+        sensorListeners.values.forEach { listener ->
+            sensorManager.unregisterListener(listener)
+        }
+
+        // Re-register with new delay
+        sensorListeners.forEach { (sensorType, listener) ->
+            activeSensors[sensorType]?.let { sensor ->
+                val newDelay = getSensorDelayForRate(currentSamplingRate, sensorType)
+                val success = sensorManager.registerListener(listener, sensor, newDelay)
+
+                if (!success) {
+                    Log.w(TAG, "Failed to re-register ${sensorType.name} sensor with new rate")
+                }
+            }
+        }
+    }
+
+    private fun getSensorDelayForRate(rate: SensorSamplingRate, sensorType: SensorType): Int {
+        val baseDelay = when (rate) {
+            SensorSamplingRate.LOW -> SensorManager.SENSOR_DELAY_NORMAL
+            SensorSamplingRate.MEDIUM -> SensorManager.SENSOR_DELAY_UI
+            SensorSamplingRate.HIGH -> SensorManager.SENSOR_DELAY_GAME
+            SensorSamplingRate.ULTRA_HIGH -> SensorManager.SENSOR_DELAY_FASTEST
+            SensorSamplingRate.ADAPTIVE -> getSensorDelay(sensorType) // Use default logic
+        }
+
+        return baseDelay
+    }
+
+    private fun startIndividualSensor(sensorType: SensorType): Boolean {
         val androidSensorType = mapToAndroidSensorType(sensorType)
         val sensor = sensorManager.getDefaultSensor(androidSensorType)
 
-        if (sensor != null) {
+        return if (sensor != null) {
             val listener = createSensorListener(sensorType)
             sensorListeners[sensorType] = listener
             activeSensors[sensorType] = sensor
 
-            val delay = customDelay ?: getSensorDelay(sensorType)
+            val delay = getSensorDelayForRate(currentSamplingRate, sensorType)
             val success = sensorManager.registerListener(listener, sensor, delay)
 
             if (success) {
-                Log.d(TAG, "Successfully started ${sensorType.name} sensor")
+                Log.d(TAG, "Successfully started individual sensor: ${sensorType.name}")
                 configurationListener?.onSensorEnabled(sensorType, true)
             } else {
-                Log.w(TAG, "Failed to start ${sensorType.name} sensor")
+                Log.w(TAG, "Failed to start individual sensor: ${sensorType.name}")
                 configurationListener?.onSensorEnabled(sensorType, false)
-                // Clean up on failure
-                sensorListeners.remove(sensorType)
-                activeSensors.remove(sensorType)
             }
 
-            return success
+            success
         } else {
-            Log.w(TAG, "${sensorType.name} sensor not available on this device")
-            configurationListener?.onSensorEnabled(sensorType, false)
-            return false
+            Log.w(TAG, "Sensor not available: ${sensorType.name}")
+            false
         }
     }
 
@@ -439,7 +558,7 @@ class SensorService(private val context: Context) {
             sensorListeners.remove(sensorType)
             activeSensors.remove(sensorType)
             configurationListener?.onSensorDisabled(sensorType)
-            Log.d(TAG, "Stopped ${sensorType.name} sensor")
+            Log.d(TAG, "Stopped individual sensor: ${sensorType.name}")
         }
     }
 

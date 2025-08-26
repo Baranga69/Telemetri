@@ -76,21 +76,27 @@ fun AutomotiveUseCaseScreen(
     val speedStats = remember { mutableStateOf<SpeedStatistics?>(null) }
 
     // Calculate running statistics when collecting data
-    LaunchedEffect(currentSpeed, isCollecting) {
+    LaunchedEffect(currentSpeed, isCollecting, speedUnit) {
         if (isCollecting && currentSpeed > 0f) {
+            // Convert speed to the selected unit before storing in statistics
+            val convertedSpeed = when (speedUnit) {
+                SpeedUnit.KPH -> currentSpeed * 3.6f // m/s to km/h
+                SpeedUnit.MPH -> currentSpeed * 2.237f // m/s to mph
+            }
+
             val current = speedStats.value
             if (current == null) {
                 speedStats.value = SpeedStatistics(
-                    maxSpeed = currentSpeed,
-                    avgSpeed = currentSpeed,
+                    maxSpeed = convertedSpeed,
+                    avgSpeed = convertedSpeed,
                     sampleCount = 1,
                     totalDistance = 0f
                 )
             } else {
                 val newSampleCount = current.sampleCount + 1
-                val newAvgSpeed = ((current.avgSpeed * current.sampleCount) + currentSpeed) / newSampleCount
+                val newAvgSpeed = ((current.avgSpeed * current.sampleCount) + convertedSpeed) / newSampleCount
                 speedStats.value = current.copy(
-                    maxSpeed = maxOf(current.maxSpeed, currentSpeed),
+                    maxSpeed = maxOf(current.maxSpeed, convertedSpeed),
                     avgSpeed = newAvgSpeed,
                     sampleCount = newSampleCount
                 )
@@ -218,11 +224,10 @@ fun AutomotiveUseCaseScreen(
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
                     ) {
                         val unitLabel = if (speedUnit == SpeedUnit.KPH) "km/h" else "mph"
-                        val convertedMaxSpeed = if (speedUnit == SpeedUnit.KPH) stats.maxSpeed * 3.6f else stats.maxSpeed * 2.237f
-                        val convertedAvgSpeed = if (speedUnit == SpeedUnit.KPH) stats.avgSpeed * 3.6f else stats.avgSpeed * 2.237f
+                        // Stats are already in the correct unit, no need to convert again
 
-                        DataRow("Max Speed", String.format(Locale.US, "%.1f %s", convertedMaxSpeed, unitLabel))
-                        DataRow("Avg Speed", String.format(Locale.US, "%.1f %s", convertedAvgSpeed, unitLabel))
+                        DataRow("Max Speed", String.format(Locale.US, "%.1f %s", stats.maxSpeed, unitLabel))
+                        DataRow("Avg Speed", String.format(Locale.US, "%.1f %s", stats.avgSpeed, unitLabel))
                         DataRow("Data Points", "${stats.sampleCount}")
                         DataRow("Test Duration", "${(stats.sampleCount * 1).coerceAtMost(3600)} seconds") // Estimate based on 1-second updates
                     }

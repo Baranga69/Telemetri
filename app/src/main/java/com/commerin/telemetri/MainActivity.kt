@@ -140,6 +140,13 @@ private fun TelemetryApp() {
                                 }
                             )
                         }
+                        "smart_fleet" -> {
+                            SmartFleetManagementScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
+                        }
                         else -> {
                             // Default to automotive use case
                             AutomotiveUseCaseScreen(

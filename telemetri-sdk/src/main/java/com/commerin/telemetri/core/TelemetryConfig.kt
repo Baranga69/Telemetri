@@ -78,7 +78,58 @@ data class TelemetryConfig(
     val edgeComputingEnabled: Boolean = false,
     val realTimeAnalysisEnabled: Boolean = false,
     val predictiveAnalyticsEnabled: Boolean = false
-)
+) {
+    /**
+     * Insurance telematics use case - comprehensive behavioral analysis
+     * Optimized for accurate driver behavior assessment and risk scoring
+     */
+    fun insuranceTelematicsUseCase(): TelemetryConfig {
+        return TelemetryConfig(
+            enableSensorCollection = true,
+            enableLocationTracking = true,
+            enableAudioTelemetry = false,         // Optional - for distraction detection
+            enableNetworkTelemetry = false,
+            enablePerformanceMonitoring = true,   // For device usage patterns
+            enableMotionAnalysis = true,
+            enableDeviceStateMonitoring = true,
+
+            // High precision settings for insurance accuracy
+            sensorSamplingRate = SensorSamplingRate.HIGH,
+            locationUpdateInterval = 1000L,       // 1 second for precise tracking
+            locationAccuracy = LocationAccuracy.VERY_HIGH,
+
+            // Enhanced motion analysis for behavioral detection
+            activityRecognitionEnabled = true,
+            stepCountingEnabled = false,          // Not needed for driving
+            fallDetectionEnabled = false,
+            gestureRecognitionEnabled = true,     // For phone usage detection
+
+            // Insurance-specific features
+            adaptiveSampling = true,              // Optimize based on driving context
+            dataCompressionEnabled = true,
+            dataEncryptionEnabled = true,         // Required for privacy compliance
+            localStorageEnabled = true,
+            cloudSyncEnabled = true,              // For insurance data processing
+            dataRetentionDays = 30,               // Insurance typically needs 30-day history
+
+            // Battery optimization for long trips
+            batteryOptimizationEnabled = true,
+            adaptiveFrequencyEnabled = true,
+            lowPowerModeThreshold = 15,
+
+            // Privacy and compliance
+            anonymizeData = false,                // Insurance needs identifiable data
+            gpsAccuracyReduction = false,         // Need full accuracy for claims
+            sensitiveDataFiltering = true,
+
+            // Advanced analytics
+            machineLearningEnabled = true,        // For pattern recognition
+            edgeComputingEnabled = true,          // Real-time risk assessment
+            realTimeAnalysisEnabled = true,       // Immediate feedback
+            predictiveAnalyticsEnabled = true     // Risk prediction
+        )
+    }
+}
 
 /**
  * Location accuracy levels for GPS tracking

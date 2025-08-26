@@ -24,6 +24,7 @@ class OptimizedLocationService(private val context: Context) {
 
     private var isCollecting = false
     private var locationJob: Job? = null
+    private var currentInterval = DEFAULT_UPDATE_INTERVAL
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     @SuppressLint("MissingPermission")
@@ -71,6 +72,22 @@ class OptimizedLocationService(private val context: Context) {
         locationJob?.cancel()
         locationJob = null
         Log.d(TAG, "Location updates stopped")
+    }
+
+    /**
+     * Update location update interval for power optimization
+     */
+    fun updateLocationInterval(newIntervalMs: Long) {
+        if (currentInterval == newIntervalMs) return
+
+        Log.d(TAG, "Updating location interval from ${currentInterval}ms to ${newIntervalMs}ms")
+        currentInterval = newIntervalMs
+
+        if (isCollecting) {
+            // Restart location updates with new interval
+            stopLocationUpdates()
+            startLocationUpdates(newIntervalMs)
+        }
     }
 
     fun cleanup() {

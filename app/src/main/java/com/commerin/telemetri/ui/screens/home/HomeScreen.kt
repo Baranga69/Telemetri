@@ -99,30 +99,46 @@ fun HomeScreen(
             title = "Security & Surveillance",
             description = "Maximum data collection for security and monitoring applications",
             icon = Icons.Default.Security,
-            color = PerformanceDataColor,
+            color = Color(0xFFE57373), // Light red
             features = listOf(
-                "Ultra-high frequency sampling",
-                "Continuous monitoring",
-                "Real-time analysis",
-                "Comprehensive logging",
-                "Anomaly detection"
+                "Complete sensor suite",
+                "High-frequency monitoring",
+                "Audio surveillance",
+                "Network intrusion detection",
+                "Performance anomaly detection"
             ),
-            telemetryTypes = listOf("All Sensors", "Location", "Audio", "Network", "Performance", "Visual")
+            telemetryTypes = listOf("All Sensors", "Audio", "Network", "Location", "Performance", "Motion")
+        ),
+        UseCase(
+            id = "smart_fleet",
+            title = "Smart Fleet Management",
+            description = "Advanced telematics with AI-powered driver detection, event analysis, and insurance scoring",
+            icon = Icons.Default.LocalShipping,
+            color = Color(0xFF7E57C2), // Purple
+            features = listOf(
+                "AI Driver vs Passenger Detection",
+                "Real-time Driving Event Analysis",
+                "Insurance Risk Scoring",
+                "Adaptive Power Management",
+                "Trip Performance Analytics",
+                "Battery Optimization"
+            ),
+            telemetryTypes = listOf("AI Detection", "Event Analysis", "Insurance Analytics", "Power Management", "Risk Assessment")
         ),
         UseCase(
             id = "battery_saver",
-            title = "Battery Optimized",
-            description = "Intelligent telemetry collection with maximum power efficiency",
-            icon = Icons.Default.BatteryChargingFull,
-            color = AudioDataColor,
+            title = "Battery Saver Mode",
+            description = "Minimal power consumption while maintaining essential monitoring capabilities",
+            icon = Icons.Default.BatteryAlert,
+            color = Color(0xFF81C784), // Light green
             features = listOf(
-                "Adaptive sampling rates",
-                "Power-efficient collection",
+                "Ultra-low power consumption",
                 "Essential sensors only",
-                "Smart scheduling",
-                "Background optimization"
+                "Minimal background processing",
+                "Extended battery life",
+                "Smart adaptive sampling"
             ),
-            telemetryTypes = listOf("Core Sensors", "Device State", "Minimal Location")
+            telemetryTypes = listOf("Minimal Sensors", "Basic Device State")
         )
     )
 

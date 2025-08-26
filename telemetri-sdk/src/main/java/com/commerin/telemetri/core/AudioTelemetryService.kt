@@ -411,6 +411,51 @@ class AudioTelemetryService(private val context: Context) {
         )
     }
 
+    // =====================================
+    // Power Management Methods
+    // =====================================
+
+    private var wasPausedForPowerSaving = false
+    private var wasRecordingBeforePause = false
+
+    /**
+     * Pause audio telemetry for power saving
+     */
+    fun pauseForPowerSaving() {
+        if (!isRecording) {
+            Log.d(TAG, "Audio telemetry not running - nothing to pause")
+            return
+        }
+
+        Log.d(TAG, "Pausing audio telemetry for power saving")
+        wasRecordingBeforePause = isRecording
+        wasPausedForPowerSaving = true
+        stopAudioTelemetry()
+    }
+
+    /**
+     * Resume audio telemetry from power saving mode
+     */
+    fun resumeFromPowerSaving() {
+        if (!wasPausedForPowerSaving) {
+            Log.d(TAG, "Audio telemetry was not paused for power saving")
+            return
+        }
+
+        Log.d(TAG, "Resuming audio telemetry from power saving")
+        wasPausedForPowerSaving = false
+
+        if (wasRecordingBeforePause && hasRequiredPermissions()) {
+            try {
+                startAudioTelemetry()
+            } catch (e: TelemetryPermissionException) {
+                Log.w(TAG, "Could not resume audio telemetry - permission issue", e)
+            }
+        }
+
+        wasRecordingBeforePause = false
+    }
+
     fun cleanup() {
         stopAudioTelemetry()
         scope.cancel()

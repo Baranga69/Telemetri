@@ -8,7 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import com.commerin.telemetri.domain.model.*
 import kotlinx.coroutines.*
 
-class TelemetriManager private constructor(private val context: Context) {
+class TelemetriManager private constructor(val context: Context) {
     companion object {
         private const val TAG = "TelemetriManager"
 
@@ -32,9 +32,14 @@ class TelemetriManager private constructor(private val context: Context) {
     private val performanceTelemetryService = PerformanceTelemetryService(context)
     private val deviceStateService = DeviceStateService(context)
 
+    // Power optimization and adaptive sampling
+    private val adaptivePowerManager = AdaptivePowerManager(context)
 
     // Telemetry configuration
     private var telemetryConfig = TelemetryConfig()
+
+    // Current adaptive strategy
+    private var currentSamplingStrategy: AdaptivePowerManager.SamplingStrategy? = null
 
     // Comprehensive telemetry data streams
     private val _comprehensiveTelemetry = MediatorLiveData<ComprehensiveTelemetryEvent>()
@@ -96,6 +101,11 @@ class TelemetriManager private constructor(private val context: Context) {
 
         Log.d(TAG, "Starting comprehensive telemetry collection with session: $currentSessionId")
 
+        // Start adaptive power management first
+        if (config.batteryOptimizationEnabled) {
+            startAdaptivePowerManagement()
+        }
+
         // Start core services based on configuration
         if (config.enableSensorCollection) {
             startSensorCollection()
@@ -140,6 +150,9 @@ class TelemetriManager private constructor(private val context: Context) {
         isCollecting = false
 
         Log.d(TAG, "Stopping comprehensive telemetry collection")
+
+        // Stop adaptive power management
+        adaptivePowerManager.stopAdaptivePowerManagement()
 
         // Stop all services regardless of config to ensure clean state
         sensorService.stop()
@@ -557,6 +570,148 @@ class TelemetriManager private constructor(private val context: Context) {
         deviceStateService.startMonitoring()
     }
 
+    private fun startAdaptivePowerManagement() {
+        adaptivePowerManager.startAdaptivePowerManagement()
+
+        // Observe power state changes
+        adaptivePowerManager.powerState.observeForever { powerState ->
+            Log.d(TAG, "Power state changed: ${powerState.powerMode}, Battery: ${powerState.batteryLevel}%")
+            handlePowerStateChange(powerState)
+        }
+
+        // Observe sampling strategy changes
+        adaptivePowerManager.samplingStrategy.observeForever { strategy ->
+            Log.d(TAG, "Sampling strategy updated: ${strategy.adaptiveReason}")
+            currentSamplingStrategy = strategy
+            applySamplingStrategy(strategy)
+        }
+
+        // Observe driving context changes
+        adaptivePowerManager.drivingContext.observeForever { context ->
+            Log.d(TAG, "Driving context changed: $context")
+            handleDrivingContextChange(context)
+        }
+
+        // Feed location data to power manager for context analysis
+        locationService.locationData.observeForever { locationData ->
+            adaptivePowerManager.updateLocationData(locationData)
+        }
+    }
+
+    private fun handlePowerStateChange(powerState: AdaptivePowerManager.PowerState) {
+        when (powerState.powerMode) {
+            AdaptivePowerManager.PowerMode.CRITICAL_BATTERY -> {
+                Log.w(TAG, "Critical battery level detected - switching to emergency mode")
+                // Disable non-essential services
+                if (telemetryConfig.enableAudioTelemetry) {
+                    audioTelemetryService.stopAudioTelemetry()
+                }
+                if (telemetryConfig.enableNetworkTelemetry) {
+                    networkTelemetryService.stopNetworkMonitoring()
+                }
+                if (telemetryConfig.enablePerformanceMonitoring) {
+                    performanceTelemetryService.stopPerformanceMonitoring()
+                }
+            }
+
+            AdaptivePowerManager.PowerMode.DEEP_SLEEP -> {
+                Log.i(TAG, "Vehicle parked - entering deep sleep mode")
+                // Reduce all services to minimal operation
+                reduceServicesForParkingMode()
+            }
+
+            AdaptivePowerManager.PowerMode.PERFORMANCE -> {
+                Log.i(TAG, "Optimal conditions detected - enabling performance mode")
+                // Re-enable services if they were disabled
+                restoreFullServices()
+            }
+
+            else -> {
+                // Handle BALANCED and BATTERY_SAVER modes
+                Log.d(TAG, "Adjusting services for power mode: ${powerState.powerMode}")
+            }
+        }
+    }
+
+    private fun handleDrivingContextChange(context: AdaptivePowerManager.DrivingContext) {
+        when (context) {
+            AdaptivePowerManager.DrivingContext.PARKED -> {
+                Log.i(TAG, "Vehicle detected as parked")
+                // Could trigger additional parking-specific logic
+            }
+
+            AdaptivePowerManager.DrivingContext.HIGHWAY_DRIVING -> {
+                Log.i(TAG, "Highway driving detected - optimizing for sustained high speed")
+                // Could reduce motion analysis frequency since highway driving is more predictable
+            }
+
+            AdaptivePowerManager.DrivingContext.CITY_DRIVING,
+            AdaptivePowerManager.DrivingContext.STOP_AND_GO -> {
+                Log.i(TAG, "City/stop-and-go driving detected - maintaining high precision")
+                // Maintain full precision for unpredictable city driving
+            }
+
+            else -> {
+                Log.d(TAG, "Driving context: $context")
+            }
+        }
+    }
+
+    private fun applySamplingStrategy(strategy: AdaptivePowerManager.SamplingStrategy) {
+        // Apply location interval changes
+        if (strategy.locationInterval != telemetryConfig.locationUpdateInterval) {
+            locationService.updateLocationInterval(strategy.locationInterval)
+        }
+
+        // Apply sensor rate changes
+        if (strategy.sensorRate != telemetryConfig.sensorSamplingRate) {
+            sensorService.updateSamplingRate(strategy.sensorRate)
+            motionAnalysisEngine.updateSamplingRate(strategy.sensorRate)
+        }
+
+        // Apply sensor filtering
+        sensorService.updateEnabledSensors(strategy.enabledSensors)
+
+        // Apply background processing changes
+        if (!strategy.backgroundProcessing && telemetryConfig.backgroundProcessingEnabled) {
+            // Reduce background processing
+            scope.launch {
+                delay(1000) // Small delay between operations
+            }
+        }
+    }
+
+    private fun reduceServicesForParkingMode() {
+        // Temporarily stop non-essential services while parked
+        if (telemetryConfig.enableAudioTelemetry) {
+            audioTelemetryService.pauseForPowerSaving()
+        }
+        if (telemetryConfig.enableNetworkTelemetry) {
+            networkTelemetryService.pauseForPowerSaving()
+        }
+        if (telemetryConfig.enablePerformanceMonitoring) {
+            performanceTelemetryService.pauseForPowerSaving()
+        }
+
+        // Keep minimal motion detection for movement detection
+        motionAnalysisEngine.enableParkingMode()
+    }
+
+    private fun restoreFullServices() {
+        // Restore services when optimal conditions return
+        if (telemetryConfig.enableAudioTelemetry) {
+            audioTelemetryService.resumeFromPowerSaving()
+        }
+        if (telemetryConfig.enableNetworkTelemetry) {
+            networkTelemetryService.resumeFromPowerSaving()
+        }
+        if (telemetryConfig.enablePerformanceMonitoring) {
+            performanceTelemetryService.resumeFromPowerSaving()
+        }
+
+        motionAnalysisEngine.disableParkingMode()
+    }
+
     // Network speed test methods
     fun startNetworkSpeedTest() {
         networkSpeedTestService.startSpeedTest()
@@ -577,10 +732,89 @@ class TelemetriManager private constructor(private val context: Context) {
 
     fun cleanup() {
         stopTelemetryCollection()
+        adaptivePowerManager.stopAdaptivePowerManagement()
         audioTelemetryService.cleanup()
         networkTelemetryService.cleanup()
         networkSpeedTestService.cleanup()
         performanceTelemetryService.cleanup()
         scope.cancel()
     }
+
+    // =====================================
+    // Power Optimization Public APIs
+    // =====================================
+
+    /**
+     * Get current power state including battery level, charging status, and power mode
+     */
+    fun getCurrentPowerState(): LiveData<AdaptivePowerManager.PowerState> = adaptivePowerManager.powerState
+
+    /**
+     * Get current sampling strategy being applied
+     */
+    fun getCurrentSamplingStrategy(): AdaptivePowerManager.SamplingStrategy? = currentSamplingStrategy
+
+    /**
+     * Get current driving context (parked, city, highway, etc.)
+     */
+    fun getCurrentDrivingContext(): LiveData<AdaptivePowerManager.DrivingContext> = adaptivePowerManager.drivingContext
+
+    /**
+     * Get power optimization recommendations for the user
+     */
+    fun getPowerOptimizationRecommendations(): List<String> {
+        return adaptivePowerManager.getPowerOptimizationRecommendations()
+    }
+
+    /**
+     * Force a specific power mode (overrides automatic detection)
+     * Use with caution - automatic mode is usually better
+     */
+    fun forcePowerMode(mode: AdaptivePowerManager.PowerMode) {
+        val currentState = adaptivePowerManager.powerState.value ?: return
+        val forcedState = currentState.copy(powerMode = mode)
+        handlePowerStateChange(forcedState)
+    }
+
+    /**
+     * Get estimated battery life based on current usage patterns
+     */
+    fun getEstimatedBatteryLife(): Long {
+        return adaptivePowerManager.powerState.value?.estimatedBatteryLife ?: 0L
+    }
+
+    /**
+     * Check if the SDK is currently in parking mode
+     */
+    fun isInParkingMode(): Boolean {
+        return adaptivePowerManager.drivingContext.value == AdaptivePowerManager.DrivingContext.PARKED
+    }
+
+    /**
+     * Get battery optimization statistics
+     */
+    fun getBatteryOptimizationStats(): BatteryOptimizationStats {
+        val powerState = adaptivePowerManager.powerState.value
+        val strategy = currentSamplingStrategy
+
+        return BatteryOptimizationStats(
+            currentBatteryLevel = powerState?.batteryLevel ?: 0f,
+            estimatedLifeMinutes = powerState?.estimatedBatteryLife ?: 0L,
+            powerMode = powerState?.powerMode?.name ?: "UNKNOWN",
+            activeSensors = strategy?.enabledSensors?.size ?: 0,
+            locationInterval = strategy?.locationInterval ?: 0L,
+            sensorRate = strategy?.sensorRate?.name ?: "UNKNOWN",
+            batterySavingsEnabled = telemetryConfig.batteryOptimizationEnabled
+        )
+    }
+
+    data class BatteryOptimizationStats(
+        val currentBatteryLevel: Float,
+        val estimatedLifeMinutes: Long,
+        val powerMode: String,
+        val activeSensors: Int,
+        val locationInterval: Long,
+        val sensorRate: String,
+        val batterySavingsEnabled: Boolean
+    )
 }

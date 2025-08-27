@@ -5,7 +5,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.commerin.telemetri.domain.model.*
 import kotlinx.coroutines.*
+import kotlin.compareTo
 import kotlin.math.*
+import kotlin.text.compareTo
 
 /**
  * Advanced driving event detection engine for insurance telematics
@@ -172,7 +174,14 @@ class DrivingEventDetectionEngine(private val context: Context) {
     }
 
     private fun detectRapidAcceleration(currentTime: Long) {
-        val recentAccelerations = accelerationHistory
+        // Create a thread-safe copy of the acceleration data
+        val accelerationSnapshot: List<TimestampedValue>
+
+        synchronized(this) {
+            accelerationSnapshot = accelerationHistory.toList()
+        }
+
+        val recentAccelerations = accelerationSnapshot
             .filter { currentTime - it.timestamp < EVENT_ANALYSIS_WINDOW }
             .sortedBy { it.timestamp }
 
@@ -382,11 +391,11 @@ class DrivingEventDetectionEngine(private val context: Context) {
             acceleration = magnitude,
             duration = duration,
             confidence = confidence,
-            context = createEventContext(currentLocation)
+            context = createEventContext()
         )
     }
 
-    private fun createEventContext(location: LocationData?): EventContext {
+    private fun createEventContext(): EventContext {
         // This would integrate with weather APIs, traffic data, etc.
         return EventContext(
             weatherConditions = null, // Would get from weather API

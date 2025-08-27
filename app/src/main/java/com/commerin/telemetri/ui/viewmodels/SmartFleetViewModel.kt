@@ -6,13 +6,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commerin.telemetri.core.*
 import com.commerin.telemetri.domain.model.*
+import com.commerin.telemetri.data.repository.ReportRepository
+import com.commerin.telemetri.utils.PdfGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
+import android.content.Context
 import javax.inject.Inject
 
 @HiltViewModel
 class SmartFleetViewModel @Inject constructor(
-    private val telemetriManager: TelemetriManager
+    private val telemetriManager: TelemetriManager,
+    private val reportRepository: ReportRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _isCollecting = MutableLiveData<Boolean>()
@@ -38,6 +44,13 @@ class SmartFleetViewModel @Inject constructor(
 
     private val _insurancePremium = MutableLiveData<RiskAssessmentEngine.InsurancePremiumEstimate>()
     val insurancePremium: LiveData<RiskAssessmentEngine.InsurancePremiumEstimate> = _insurancePremium
+
+    private val _currentSpeed = MutableLiveData<Float>()
+    val currentSpeed: LiveData<Float> = _currentSpeed
+
+    // Report generation status
+    private val _reportGenerationStatus = MutableLiveData<String>()
+    val reportGenerationStatus: LiveData<String> = _reportGenerationStatus
 
     // Enhanced engines
     private var driverDetectionEngine: DriverDetectionEngine? = null
@@ -113,6 +126,12 @@ class SmartFleetViewModel @Inject constructor(
 
         telemetriManager.locationData.observeForever { locationData ->
             drivingEventDetectionEngine?.updateLocationData(locationData)
+
+            // Extract speed from location data and convert to km/h
+            locationData?.speed?.let { speedInMps ->
+                val speedInKmh = speedInMps * 3.6f
+                _currentSpeed.postValue(speedInKmh)
+            } ?: _currentSpeed.postValue(0f)
         }
     }
 
@@ -196,18 +215,51 @@ class SmartFleetViewModel @Inject constructor(
     fun exportEventReport() {
         viewModelScope.launch {
             try {
+                _reportGenerationStatus.postValue("Generating event report...")
+
                 val events = _drivingEvents.value ?: emptyList()
                 val currentTrip = _currentTrip.value
                 val driverState = _driverState.value
 
                 // Create comprehensive report
-                val report = generateEventReport(events, currentTrip, driverState)
+                val reportContent = generateEventReport(events, currentTrip, driverState)
+                val reportTitle = "Fleet Event Report - ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"
 
-                android.util.Log.d("SmartFleetViewModel", "Event report generated: $report")
+                // Generate PDF
+                val pdfResult = PdfGenerator.generateEventReportPdf(
+                    context = context,
+                    title = reportTitle,
+                    content = reportContent
+                )
 
-                // In a real app, you would export this to a file or send to a server
+                pdfResult.fold(
+                    onSuccess = { filePath ->
+                        // Save to database
+                        reportRepository.saveEventReport(
+                            title = reportTitle,
+                            content = reportContent,
+                            driverStatus = driverState?.let { if (it.isDriver) "Driver" else "Passenger" },
+                            tripScore = currentTrip?.overallScore,
+                            eventCount = events.size,
+                            filePath = filePath
+                        )
+
+                        // Save individual events to database
+                        events.forEach { event ->
+                            reportRepository.saveEvent(event)
+                        }
+
+                        _reportGenerationStatus.postValue("Event report saved successfully! PDF: $filePath")
+                        android.util.Log.d("SmartFleetViewModel", "Event report PDF saved: $filePath")
+                    },
+                    onFailure = { error ->
+                        _reportGenerationStatus.postValue("Failed to generate event report: ${error.message}")
+                        android.util.Log.e("SmartFleetViewModel", "Error generating event report PDF", error)
+                    }
+                )
 
             } catch (e: Exception) {
+                _reportGenerationStatus.postValue("Error generating event report: ${e.message}")
                 android.util.Log.e("SmartFleetViewModel", "Error exporting event report", e)
             }
         }
@@ -216,19 +268,48 @@ class SmartFleetViewModel @Inject constructor(
     fun generateInsuranceReport() {
         viewModelScope.launch {
             try {
+                _reportGenerationStatus.postValue("Generating insurance report...")
+
                 val premium = _insurancePremium.value
                 val riskScore = _riskScore.value
                 val events = _drivingEvents.value ?: emptyList()
                 val driverState = _driverState.value
 
                 // Create insurance-specific report
-                val report = generateInsuranceAnalysisReport(premium, riskScore, events, driverState)
+                val reportContent = generateInsuranceAnalysisReport(premium, riskScore, events, driverState)
+                val reportTitle = "Insurance Analytics Report - ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"
 
-                android.util.Log.d("SmartFleetViewModel", "Insurance report generated: $report")
+                // Generate PDF
+                val pdfResult = PdfGenerator.generateInsuranceReportPdf(
+                    context = context,
+                    title = reportTitle,
+                    content = reportContent
+                )
 
-                // In a real app, this would be sent to insurance provider's API
+                pdfResult.fold(
+                    onSuccess = { filePath ->
+                        // Save to database
+                        reportRepository.saveInsuranceReport(
+                            title = reportTitle,
+                            content = reportContent,
+                            riskScore = riskScore,
+                            basePremium = premium?.basePremium,
+                            estimatedPremium = premium?.estimatedPremium,
+                            discountEligible = premium?.discountEligible ?: false,
+                            filePath = filePath
+                        )
+
+                        _reportGenerationStatus.postValue("Insurance report saved successfully! PDF: $filePath")
+                        android.util.Log.d("SmartFleetViewModel", "Insurance report PDF saved: $filePath")
+                    },
+                    onFailure = { error ->
+                        _reportGenerationStatus.postValue("Failed to generate insurance report: ${error.message}")
+                        android.util.Log.e("SmartFleetViewModel", "Error generating insurance report PDF", error)
+                    }
+                )
 
             } catch (e: Exception) {
+                _reportGenerationStatus.postValue("Error generating insurance report: ${e.message}")
                 android.util.Log.e("SmartFleetViewModel", "Error generating insurance report", e)
             }
         }

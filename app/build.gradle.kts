@@ -2,8 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt.android)
-    id("kotlin-kapt")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.0"
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ksp)
+    id("kotlin-kapt") // Keep kapt only for Hilt
 }
 
 android {
@@ -43,9 +44,6 @@ android {
         compose = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
 
     hilt {
         enableAggregatingTask = false
@@ -59,58 +57,65 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
 
     // Jetpack Compose BOM and dependencies
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     // Navigation and ViewModel for Compose
-    implementation("androidx.navigation:navigation-compose:2.7.6")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Room database dependencies
+    implementation(libs.androidx.room.runtime.app)
+    implementation(libs.androidx.room.ktx.app)
+    ksp(libs.androidx.room.compiler.app) // Changed from kapt to ksp
 
     // Hilt for Dependency Injection
-    implementation("com.google.dagger:hilt-android:2.55")
-    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
-    implementation("androidx.hilt:hilt-work:1.2.0") // Match SDK version
+    implementation(libs.hilt.android.app)
+    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.work) // Match SDK version
     implementation(libs.androidx.runtime.livedata)
-    kapt("com.google.dagger:hilt-compiler:2.55")
-    kapt("androidx.hilt:hilt-compiler:1.2.0") // Match SDK version
+    implementation(libs.androidx.room.ktx)
+
+    kapt(libs.hilt.compiler.app)
+    kapt(libs.androidx.hilt.compiler) // Match SDK version
+
+    // Explicit kotlinx-metadata-jvm dependency to fix version compatibility
+//    implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.8.0")
 
     // WorkManager for background tasks
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Permission handling
-    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
+    implementation(libs.accompanist.permissions)
 
     // Additional UI components
-    implementation("androidx.cardview:cardview:1.0.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation(libs.androidx.cardview)
+    implementation(libs.androidx.constraintlayout)
 
     // Coroutines for async operations
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation(libs.kotlinx.coroutines.android)
 
     // Location services
-    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation(libs.play.services.location.app)
 
     // Splash Screen API
-    implementation("androidx.core:core-splashscreen:1.0.1")
-
-    // Charts and data visualization - Custom implementation using Compose Canvas
-    // implementation("com.github.PhilJay:MPAndroidChart:v3.1.0") // Removed - replaced with custom charts
+    implementation(libs.androidx.core.splashscreen)
 
     // Testing dependencies
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation(libs.junit.test)
+    androidTestImplementation(libs.androidx.junit.test)
+    androidTestImplementation(libs.androidx.espresso.core.test)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

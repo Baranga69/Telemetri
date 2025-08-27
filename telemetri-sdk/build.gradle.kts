@@ -45,40 +45,43 @@ dependencies {
     implementation(libs.material)
 
     // Lifecycle and Architecture Components
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-process:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-common-java8:2.7.0")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.lifecycle.common.java8)
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     // WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Room Database
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
+    implementation(libs.androidx.room.runtime.app)
+    implementation(libs.androidx.room.ktx.app)
     implementation(libs.androidx.navigation.common.ktx)
-    kapt("androidx.room:room-compiler:2.6.1")
+    kapt(libs.androidx.room.compiler.app)
 
     // Location Services
     implementation(libs.play.services.location)
 
     // JavaPoet dependency to fix Hilt compilation issues
-    implementation("com.squareup:javapoet:1.13.0")
+    implementation(libs.javapoet)
 
-    // Dependency Injection (Hilt) - updated to version 2.55
-    implementation("com.google.dagger:hilt-android:2.55")
-    kapt("com.google.dagger:hilt-android-compiler:2.55")
-    implementation("androidx.hilt:hilt-work:1.2.0")
-    kapt("androidx.hilt:hilt-compiler:1.2.0")
+    // Dependency Injection (Hilt) - updated to version 2.51 for compatibility
+    implementation(libs.hilt.android.sdk)
+    kapt(libs.hilt.android.compiler.sdk)
+    implementation(libs.androidx.hilt.work)
+    kapt(libs.androidx.hilt.compiler)
+
+    // Explicit kotlinx-metadata-jvm dependency to fix version compatibility
+//    implementation("org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.8.0")
 
     // JSON Processing
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.gson)
 
     // Network (for future API integration)
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp.logging.interceptor)
 }

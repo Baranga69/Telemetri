@@ -50,20 +50,36 @@ fun HomeScreen(
             telemetryTypes = listOf("Network", "Signal", "Speed", "Connectivity")
         ),
         UseCase(
-            id = "automotive",
-            title = "Automotive Telemetry",
-            description = "Comprehensive vehicle and driving analytics with high-precision data collection",
-            icon = Icons.Default.DirectionsCar,
-            color = SensorDataColor,
+            id = "smart_fleet",
+            title = "Smart Fleet Management",
+            description = "Advanced telematics with AI-powered driver detection, event analysis, and insurance scoring",
+            icon = Icons.Default.LocalShipping,
+            color = Color(0xFF7E57C2), // Purple
             features = listOf(
-                "High-frequency sensor collection",
-                "Precise GPS tracking (1-second intervals)",
-                "Audio environment analysis",
-                "Network connectivity monitoring",
-                "Real-time performance tracking"
+                "AI Driver vs Passenger Detection",
+                "Real-time Driving Event Analysis",
+                "Insurance Risk Scoring",
+                "Adaptive Power Management",
+                "Trip Performance Analytics",
+                "Battery Optimization"
             ),
-            telemetryTypes = listOf("Location", "Sensors", "Audio", "Network", "Performance", "Motion")
+            telemetryTypes = listOf("AI Detection", "Event Analysis", "Insurance Analytics", "Power Management", "Risk Assessment")
         ),
+//        UseCase(
+//            id = "automotive",
+//            title = "Automotive Telemetry",
+//            description = "Comprehensive vehicle and driving analytics with high-precision data collection",
+//            icon = Icons.Default.DirectionsCar,
+//            color = SensorDataColor,
+//            features = listOf(
+//                "High-frequency sensor collection",
+//                "Precise GPS tracking (1-second intervals)",
+//                "Audio environment analysis",
+//                "Network connectivity monitoring",
+//                "Real-time performance tracking"
+//            ),
+//            telemetryTypes = listOf("Location", "Sensors", "Audio", "Network", "Performance", "Motion")
+//        ),
         UseCase(
             id = "fitness",
             title = "Fitness & Health Tracking",
@@ -108,22 +124,6 @@ fun HomeScreen(
                 "Performance anomaly detection"
             ),
             telemetryTypes = listOf("All Sensors", "Audio", "Network", "Location", "Performance", "Motion")
-        ),
-        UseCase(
-            id = "smart_fleet",
-            title = "Smart Fleet Management",
-            description = "Advanced telematics with AI-powered driver detection, event analysis, and insurance scoring",
-            icon = Icons.Default.LocalShipping,
-            color = Color(0xFF7E57C2), // Purple
-            features = listOf(
-                "AI Driver vs Passenger Detection",
-                "Real-time Driving Event Analysis",
-                "Insurance Risk Scoring",
-                "Adaptive Power Management",
-                "Trip Performance Analytics",
-                "Battery Optimization"
-            ),
-            telemetryTypes = listOf("AI Detection", "Event Analysis", "Insurance Analytics", "Power Management", "Risk Assessment")
         ),
         UseCase(
             id = "battery_saver",

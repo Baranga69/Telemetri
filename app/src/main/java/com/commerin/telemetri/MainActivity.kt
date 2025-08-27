@@ -22,6 +22,7 @@ import com.commerin.telemetri.domain.model.PermissionState
 import com.commerin.telemetri.domain.model.TelemetryPermissions
 import com.commerin.telemetri.ui.screens.home.HomeScreen
 import com.commerin.telemetri.ui.screens.permissions.PermissionsScreen
+import com.commerin.telemetri.ui.screens.reports.ReportsScreen
 import com.commerin.telemetri.ui.screens.usecases.*
 import com.commerin.telemetri.ui.theme.TelemetriTheme
 import com.commerin.telemetri.ui.theme.ThemeState
@@ -105,13 +106,13 @@ private fun TelemetryApp() {
                                 }
                             )
                         }
-                        "automotive" -> {
-                            AutomotiveUseCaseScreen(
-                                onBackPressed = {
-                                    navController.navigateUp()
-                                }
-                            )
-                        }
+//                        "automotive" -> {
+//                            AutomotiveUseCaseScreen(
+//                                onBackPressed = {
+//                                    navController.navigateUp()
+//                                }
+//                            )
+//                        }
                         "fitness" -> {
                             FitnessUseCaseScreen(
                                 onBackPressed = {
@@ -147,9 +148,17 @@ private fun TelemetryApp() {
                                 }
                             )
                         }
+
+                        "reports" -> {
+                            ReportsScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                }
+                            )
+                        }
                         else -> {
                             // Default to automotive use case
-                            AutomotiveUseCaseScreen(
+                            SmartFleetManagementScreen(
                                 onBackPressed = {
                                     navController.navigateUp()
                                 }

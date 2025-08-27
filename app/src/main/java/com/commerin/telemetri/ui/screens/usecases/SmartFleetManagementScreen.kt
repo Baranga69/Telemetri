@@ -1,8 +1,8 @@
 package com.commerin.telemetri.ui.screens.usecases
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,14 +13,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.commerin.telemetri.core.*
 import com.commerin.telemetri.domain.model.*
 import com.commerin.telemetri.ui.components.*
-import com.commerin.telemetri.ui.components.charts.*
 import com.commerin.telemetri.ui.viewmodels.SmartFleetViewModel
-import com.google.android.material.chip.Chip
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,9 +37,19 @@ fun SmartFleetManagementScreen(
     val batteryStats by viewModel.batteryStats.observeAsState()
     val riskScore by viewModel.riskScore.observeAsState()
     val insurancePremium by viewModel.insurancePremium.observeAsState()
+    val currentSpeed by viewModel.currentSpeed.observeAsState(0f)
+    val reportStatus by viewModel.reportGenerationStatus.observeAsState()
 
     LaunchedEffect(Unit) {
         viewModel.initializeFleetManagement()
+    }
+
+    // Show status messages when reports are generated
+    reportStatus?.let { status ->
+        LaunchedEffect(status) {
+            // You could show a snackbar or toast here
+            // For now, we'll just log it (the status is already shown in the UI)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -83,18 +93,19 @@ fun SmartFleetManagementScreen(
             item {
                 RealTimeEventsMonitor(
                     events = drivingEvents.take(5), // Show last 5 events
+                    currentSpeed = currentSpeed,
                     onViewAllEvents = { viewModel.exportEventReport() }
                 )
             }
 
-            // Power Management Status
-            item {
-                PowerManagementDashboard(
-                    powerState = powerState,
-                    batteryStats = batteryStats,
-                    onOptimizePower = { viewModel.optimizePowerSettings() }
-                )
-            }
+//            // Power Management Status
+//            item {
+//                PowerManagementDashboard(
+//                    powerState = powerState,
+//                    batteryStats = batteryStats,
+//                    onOptimizePower = { viewModel.optimizePowerSettings() }
+//                )
+//            }
 
             // Insurance Analytics
             item {
@@ -110,6 +121,23 @@ fun SmartFleetManagementScreen(
                 FleetAnalyticsCharts(
                     events = drivingEvents,
                     currentTrip = currentTrip
+                )
+            }
+
+            // Report Generation Status
+            reportStatus?.let { status ->
+                item {
+                    ReportStatusCard(status = status)
+                }
+            }
+
+            // Navigation to Reports Screen
+            item {
+                NavigationCard(
+                    onNavigateToReports = {
+                        // Navigate to reports screen - you'll need to pass navController
+                        // For now, we'll show a placeholder
+                    }
                 )
             }
         }
@@ -248,7 +276,7 @@ private fun DriverStatusDashboard(
                     Text(
                         text = "Driver\nConfidence",
                         style = MaterialTheme.typography.labelSmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -287,6 +315,7 @@ private fun DriverStatusDashboard(
 @Composable
 private fun RealTimeEventsMonitor(
     events: List<DrivingEvent>,
+    currentSpeed: Float,
     onViewAllEvents: () -> Unit
 ) {
     TelemetryDataCard(
@@ -294,7 +323,36 @@ private fun RealTimeEventsMonitor(
         icon = Icons.Default.Warning,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
     ) {
+        // Add speedometer at the top
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Current Speed",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            DigitalSpeedometer(
+                speed = currentSpeed,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+
         if (events.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Recent Events",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
             events.forEach { event ->
                 EventCard(event = event)
                 if (event != events.last()) {
@@ -312,6 +370,7 @@ private fun RealTimeEventsMonitor(
                 Icon(Icons.Default.Description, contentDescription = null)
             }
         } else {
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "No driving events detected yet. Start monitoring to see real-time events.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -363,7 +422,7 @@ private fun PowerManagementDashboard(
                     Text(
                         text = "Battery\nLevel",
                         style = MaterialTheme.typography.labelSmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -421,20 +480,22 @@ private fun InsuranceAnalyticsDashboard(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             CircularProgressIndicator(
-                                progress = (100 - riskScore) / 100f,
-                                modifier = Modifier.size(60.dp),
-                                color = when {
-                                    riskScore < 20f -> Color.Green
-                                    riskScore < 50f -> Color.Yellow
-                                    else -> Color.Red
-                                },
-                                strokeWidth = 6.dp
+                            progress = { (100 - riskScore) / 100f },
+                            modifier = Modifier.size(60.dp),
+                            color = when {
+                                                                riskScore < 20f -> Color.Green
+                                                                riskScore < 50f -> Color.Yellow
+                                                                else -> Color.Red
+                                                            },
+                            strokeWidth = 6.dp,
+                            trackColor = ProgressIndicatorDefaults.circularTrackColor,
+                            strokeCap = ProgressIndicatorDefaults.CircularDeterminateStrokeCap,
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Safety\nScore",
                                 style = MaterialTheme.typography.labelSmall,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -590,7 +651,7 @@ private fun EventCard(event: DrivingEvent) {
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "${event.severity.name} • ${String.format("%.1f", event.speed * 3.6f)} km/h",
+                    text = "${event.severity.name} • ${String.format(Locale.getDefault(), "%.1f", event.speed * 3.6f)} km/h",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -602,6 +663,162 @@ private fun EventCard(event: DrivingEvent) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+fun DigitalSpeedometer(speed: Float, modifier: Modifier = Modifier) {
+    val speedText = String.format(Locale.getDefault(), "%03d", speed.toInt().coerceIn(0, 999))
+
+    Card(
+        modifier = modifier
+            .height(80.dp)
+            .width(120.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // 7-segment style speed display
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                speedText.forEach { digit ->
+                    SevenSegmentDigit(
+                        digit = digit,
+                        modifier = Modifier.padding(horizontal = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Unit label
+            Text(
+                text = "KM/H",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = Color.Red,
+                    fontSize = 10.sp
+                ),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun SevenSegmentDigit(digit: Char, modifier: Modifier = Modifier) {
+    val segments = getSevenSegmentPattern(digit)
+
+    Box(
+        modifier = modifier
+            .width(20.dp)
+            .height(32.dp)
+    ) {
+        // Top horizontal segment
+        HorizontalSegment(
+            isActive = segments[0],
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = 1.dp)
+        )
+
+        // Top-left vertical segment
+        VerticalSegment(
+            isActive = segments[1],
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = 1.dp, y = 3.dp)
+        )
+
+        // Top-right vertical segment
+        VerticalSegment(
+            isActive = segments[2],
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (-1).dp, y = 3.dp)
+        )
+
+        // Middle horizontal segment
+        HorizontalSegment(
+            isActive = segments[3],
+            modifier = Modifier
+                .align(Alignment.Center)
+        )
+
+        // Bottom-left vertical segment
+        VerticalSegment(
+            isActive = segments[4],
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = 1.dp, y = (-3).dp)
+        )
+
+        // Bottom-right vertical segment
+        VerticalSegment(
+            isActive = segments[5],
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = (-1).dp, y = (-3).dp)
+        )
+
+        // Bottom horizontal segment
+        HorizontalSegment(
+            isActive = segments[6],
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = (-1).dp)
+        )
+    }
+}
+
+@Composable
+private fun HorizontalSegment(isActive: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .width(14.dp)
+            .height(2.dp)
+            .background(
+                color = if (isActive) Color.Red else Color.Red.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(1.dp)
+            )
+    )
+}
+
+@Composable
+private fun VerticalSegment(isActive: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .width(2.dp)
+            .height(12.dp)
+            .background(
+                color = if (isActive) Color.Red else Color.Red.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(1.dp)
+            )
+    )
+}
+
+private fun getSevenSegmentPattern(digit: Char): BooleanArray {
+    return when (digit) {
+        '0' -> booleanArrayOf(true, true, true, false, true, true, true)
+        '1' -> booleanArrayOf(false, false, true, false, false, true, false)
+        '2' -> booleanArrayOf(true, false, true, true, true, false, true)
+        '3' -> booleanArrayOf(true, false, true, true, false, true, true)
+        '4' -> booleanArrayOf(false, true, true, true, false, true, false)
+        '5' -> booleanArrayOf(true, true, false, true, false, true, true)
+        '6' -> booleanArrayOf(true, true, false, true, true, true, true)
+        '7' -> booleanArrayOf(true, false, true, false, false, true, false)
+        '8' -> booleanArrayOf(true, true, true, true, true, true, true)
+        '9' -> booleanArrayOf(true, true, true, true, false, true, true)
+        else -> booleanArrayOf(false, false, false, false, false, false, false) // blank
     }
 }
 
@@ -666,6 +883,7 @@ private fun formatTime(timestamp: Long): String {
     val calendar = Calendar.getInstance()
     calendar.timeInMillis = timestamp
     return String.format(
+        Locale.getDefault(),
         "%02d:%02d:%02d",
         calendar.get(Calendar.HOUR_OF_DAY),
         calendar.get(Calendar.MINUTE),

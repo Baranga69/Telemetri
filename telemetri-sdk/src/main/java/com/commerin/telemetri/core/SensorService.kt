@@ -151,10 +151,10 @@ class SensorService(private val context: Context) {
                         // Post sensor data to LiveData
                         _sensorData.postValue(sensorData)
 
-                        // Log high-frequency sensors less frequently to avoid spam
-                        if (shouldLogSensorData(sensorType)) {
-                            Log.v(TAG, "Sensor data: ${sensorType.name} = ${sensorEvent.values.contentToString()}")
-                        }
+//                        // Log high-frequency sensors less frequently to avoid spam
+//                        if (shouldLogSensorData(sensorType)) {
+//                            Log.v(TAG, "Sensor data: ${sensorType.name} = ${sensorEvent.values.contentToString()}")
+//                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error processing sensor data for ${sensorType.name}", e)
                     }

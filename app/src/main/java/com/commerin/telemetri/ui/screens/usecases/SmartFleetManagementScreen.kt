@@ -655,7 +655,7 @@ private fun EventCard(event: DrivingEvent) {
                 EventSeverity.MEDIUM -> Color.Yellow.copy(alpha = 0.1f)
                 else -> MaterialTheme.colorScheme.surfaceVariant
             }
-        )
+        ),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

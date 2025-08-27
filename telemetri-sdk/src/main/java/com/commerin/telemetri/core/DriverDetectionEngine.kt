@@ -67,7 +67,11 @@ class DriverDetectionEngine(private val context: Context) : SensorEventListener 
         GEAR_SHIFTING,        // Sharp, deliberate movements
         PHONE_HANDLING,       // Irregular, non-driving movements
         STABLE_MOUNT,         // Mounted phone with minimal movement
-        UNKNOWN
+        UNKNOWN,
+        DISTRACTED,
+        PASSENGER_LIKE,
+        DRIVING_FOCUSED
+
     }
 
     enum class Position {
@@ -76,7 +80,9 @@ class DriverDetectionEngine(private val context: Context) : SensorEventListener 
         PASSENGER_SIDE,           // Passenger area
         CENTER_CONSOLE,           // Central position
         CUP_HOLDER,              // In cup holder
-        UNKNOWN
+        UNKNOWN,
+        CENTER,
+        DRIVER_SIDE
     }
 
     fun startDriverDetection() {
@@ -272,6 +278,8 @@ class DriverDetectionEngine(private val context: Context) : SensorEventListener 
             Position.CENTER_CONSOLE -> 0.0f
             Position.CUP_HOLDER -> 0.2f * phonePosition.confidence
             Position.UNKNOWN -> 0.0f
+            Position.CENTER -> 0.0f
+            Position.DRIVER_SIDE -> 0.0f
         }
 
         // Movement pattern indicators
@@ -282,6 +290,9 @@ class DriverDetectionEngine(private val context: Context) : SensorEventListener 
             MovementType.PHONE_HANDLING -> -0.3f
             MovementType.PASSIVE_MOVEMENT -> -0.1f
             MovementType.UNKNOWN -> 0f
+            MovementType.DISTRACTED -> 0f
+            MovementType.PASSENGER_LIKE -> 0f
+            MovementType.DRIVING_FOCUSED -> 0f
         }
 
         // Turn correlation (driver's phone correlates with vehicle turns)

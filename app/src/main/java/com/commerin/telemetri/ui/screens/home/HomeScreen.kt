@@ -50,6 +50,22 @@ fun HomeScreen(
             telemetryTypes = listOf("Network", "Signal", "Speed", "Connectivity")
         ),
         UseCase(
+            id = "enhanced_smart_fleet",
+            title = "Enhanced Driving Telemetry",
+            description = "Enhanced telematics with AI-powered driver detection, event analysis, and insurance scoring",
+            icon = Icons.Default.LocalShipping,
+            color = Color(0xFF6D67C8), // Purple
+            features = listOf(
+                "AI Driver vs Passenger Detection",
+                "Real-time Driving Event Analysis",
+                "Insurance Risk Scoring",
+                "Adaptive Power Management",
+                "Trip Performance Analytics",
+                "Battery Optimization"
+            ),
+            telemetryTypes = listOf("AI Detection", "Event Analysis", "Insurance Analytics", "Power Management", "Risk Assessment")
+        ),
+        UseCase(
             id = "smart_fleet",
             title = "Smart Fleet Management",
             description = "Advanced telematics with AI-powered driver detection, event analysis, and insurance scoring",
@@ -65,21 +81,6 @@ fun HomeScreen(
             ),
             telemetryTypes = listOf("AI Detection", "Event Analysis", "Insurance Analytics", "Power Management", "Risk Assessment")
         ),
-//        UseCase(
-//            id = "automotive",
-//            title = "Automotive Telemetry",
-//            description = "Comprehensive vehicle and driving analytics with high-precision data collection",
-//            icon = Icons.Default.DirectionsCar,
-//            color = SensorDataColor,
-//            features = listOf(
-//                "High-frequency sensor collection",
-//                "Precise GPS tracking (1-second intervals)",
-//                "Audio environment analysis",
-//                "Network connectivity monitoring",
-//                "Real-time performance tracking"
-//            ),
-//            telemetryTypes = listOf("Location", "Sensors", "Audio", "Network", "Performance", "Motion")
-//        ),
         UseCase(
             id = "fitness",
             title = "Fitness & Health Tracking",

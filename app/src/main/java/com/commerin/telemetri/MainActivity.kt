@@ -22,6 +22,7 @@ import com.commerin.telemetri.domain.model.PermissionState
 import com.commerin.telemetri.domain.model.TelemetryPermissions
 import com.commerin.telemetri.ui.screens.home.HomeScreen
 import com.commerin.telemetri.ui.screens.permissions.PermissionsScreen
+import com.commerin.telemetri.ui.screens.reports.EnhancedReportsScreen
 import com.commerin.telemetri.ui.screens.reports.ReportsScreen
 import com.commerin.telemetri.ui.screens.usecases.*
 import com.commerin.telemetri.ui.theme.TelemetriTheme
@@ -103,6 +104,13 @@ private fun TelemetryApp() {
                         }
                     )
                 }
+                composable("enhanced_reports") {
+                    EnhancedReportsScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
 
                 composable("usecase/{useCaseId}") { backStackEntry ->
                     val useCaseId = backStackEntry.arguments?.getString("useCaseId") ?: "automotive"
@@ -150,6 +158,16 @@ private fun TelemetryApp() {
                                 },
                                 onNavigateToReports = {
                                     navController.navigate("reports")
+                                }
+                            )
+                        }
+                        "enhanced_smart_fleet" -> {
+                            EnhancedSmartFleetManagementScreen(
+                                onBackPressed = {
+                                    navController.navigateUp()
+                                },
+                                onNavigateToReports = {
+                                    navController.navigate("enhanced_reports")
                                 }
                             )
                         }

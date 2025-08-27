@@ -24,8 +24,8 @@ class SmartFleetViewModel @Inject constructor(
     private val _isCollecting = MutableLiveData<Boolean>()
     val isCollecting: LiveData<Boolean> = _isCollecting
 
-    private val _driverState = MutableLiveData<DriverState>()
-    val driverState: LiveData<DriverState> = _driverState
+    private val _driverState = MutableLiveData<com.commerin.telemetri.domain.model.DriverState>()
+    val driverState: LiveData<com.commerin.telemetri.domain.model.DriverState> = _driverState
 
     private val _currentTrip = MutableLiveData<TripScore>()
     val currentTrip: LiveData<TripScore> = _currentTrip
@@ -329,7 +329,7 @@ class SmartFleetViewModel @Inject constructor(
     private fun generateEventReport(
         events: List<DrivingEvent>,
         trip: TripScore?,
-        driverState: DriverState?
+        driverState: com.commerin.telemetri.domain.model.DriverState?
     ): String {
         return buildString {
             appendLine("=== FLEET MANAGEMENT EVENT REPORT ===")
@@ -392,7 +392,7 @@ class SmartFleetViewModel @Inject constructor(
         premium: RiskAssessmentEngine.InsurancePremiumEstimate?,
         riskScore: Float?,
         events: List<DrivingEvent>,
-        driverState: DriverState?
+        driverState: com.commerin.telemetri.domain.model.DriverState?
     ): String {
         return buildString {
             appendLine("=== INSURANCE ANALYTICS REPORT ===")

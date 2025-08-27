@@ -1,6 +1,7 @@
 package com.commerin.telemetri.core
 
 import com.commerin.telemetri.domain.model.SensorType
+import java.io.Serializable
 
 /**
  * Enhanced telemetry configuration for comprehensive sensor data collection
@@ -78,7 +79,7 @@ data class TelemetryConfig(
     val edgeComputingEnabled: Boolean = false,
     val realTimeAnalysisEnabled: Boolean = false,
     val predictiveAnalyticsEnabled: Boolean = false
-) {
+) : Serializable {
     /**
      * Insurance telematics use case - comprehensive behavioral analysis
      * Optimized for accurate driver behavior assessment and risk scoring
@@ -134,7 +135,7 @@ data class TelemetryConfig(
 /**
  * Location accuracy levels for GPS tracking
  */
-enum class LocationAccuracy {
+enum class LocationAccuracy : Serializable {
     LOW,        // ~500m accuracy, low power
     MEDIUM,     // ~100m accuracy, balanced
     HIGH,       // ~5m accuracy, high power
@@ -144,7 +145,7 @@ enum class LocationAccuracy {
 /**
  * Sensor sampling rate configurations
  */
-enum class SensorSamplingRate {
+enum class SensorSamplingRate : Serializable {
     LOW,         // Lowest frequency, maximum battery saving
     MEDIUM,      // Balanced frequency and power consumption
     HIGH,        // High frequency for detailed analysis

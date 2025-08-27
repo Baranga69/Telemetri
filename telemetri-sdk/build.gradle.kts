@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.androidx.room.runtime.app)
     implementation(libs.androidx.room.ktx.app)
     implementation(libs.androidx.navigation.common.ktx)
+    implementation(libs.androidx.lifecycle.service)
     kapt(libs.androidx.room.compiler.app)
 
     // Location Services

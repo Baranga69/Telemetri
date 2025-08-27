@@ -95,6 +95,15 @@ private fun TelemetryApp() {
                     )
                 }
 
+                // Add reports as a top-level route
+                composable("reports") {
+                    ReportsScreen(
+                        onBackPressed = {
+                            navController.navigateUp()
+                        }
+                    )
+                }
+
                 composable("usecase/{useCaseId}") { backStackEntry ->
                     val useCaseId = backStackEntry.arguments?.getString("useCaseId") ?: "automotive"
 
@@ -106,13 +115,6 @@ private fun TelemetryApp() {
                                 }
                             )
                         }
-//                        "automotive" -> {
-//                            AutomotiveUseCaseScreen(
-//                                onBackPressed = {
-//                                    navController.navigateUp()
-//                                }
-//                            )
-//                        }
                         "fitness" -> {
                             FitnessUseCaseScreen(
                                 onBackPressed = {
@@ -145,14 +147,9 @@ private fun TelemetryApp() {
                             SmartFleetManagementScreen(
                                 onBackPressed = {
                                     navController.navigateUp()
-                                }
-                            )
-                        }
-
-                        "reports" -> {
-                            ReportsScreen(
-                                onBackPressed = {
-                                    navController.navigateUp()
+                                },
+                                onNavigateToReports = {
+                                    navController.navigate("reports")
                                 }
                             )
                         }
@@ -161,6 +158,9 @@ private fun TelemetryApp() {
                             SmartFleetManagementScreen(
                                 onBackPressed = {
                                     navController.navigateUp()
+                                },
+                                onNavigateToReports = {
+                                    navController.navigate("reports")
                                 }
                             )
                         }

@@ -51,6 +51,7 @@ gson = "2.10.1"
 retrofit = "2.9.0"
 retrofitConverterGson = "2.9.0"
 okhttpLoggingInterceptor = "4.12.0"
+lifecycleService = "2.9.2"
 
 [libraries]
 # Existing libraries that are still used
@@ -109,6 +110,7 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofitConverterGson" }
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttpLoggingInterceptor" }
+androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

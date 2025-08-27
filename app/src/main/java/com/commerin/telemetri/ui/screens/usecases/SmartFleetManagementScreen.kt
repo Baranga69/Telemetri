@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -17,17 +18,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.commerin.telemetri.core.*
 import com.commerin.telemetri.domain.model.*
 import com.commerin.telemetri.ui.components.*
 import com.commerin.telemetri.ui.viewmodels.SmartFleetViewModel
+import com.commerin.telemetri.ui.viewmodels.TelematicsSessionViewModel
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmartFleetManagementScreen(
     onBackPressed: () -> Unit,
-    viewModel: SmartFleetViewModel = hiltViewModel()
+    onNavigateToReports: () -> Unit = {}, // Add navigation callback
+    viewModel: SmartFleetViewModel = hiltViewModel(),
+    sessionViewModel: TelematicsSessionViewModel = viewModel()
 ) {
     val isCollecting by viewModel.isCollecting.observeAsState(false)
     val driverState by viewModel.driverState.observeAsState()
@@ -39,6 +44,10 @@ fun SmartFleetManagementScreen(
     val insurancePremium by viewModel.insurancePremium.observeAsState()
     val currentSpeed by viewModel.currentSpeed.observeAsState(0f)
     val reportStatus by viewModel.reportGenerationStatus.observeAsState()
+
+    // New session management states
+    val sessionState by sessionViewModel.sessionState.observeAsState(SessionState.STOPPED)
+    val activeSession by sessionViewModel.activeSession.observeAsState()
 
     LaunchedEffect(Unit) {
         viewModel.initializeFleetManagement()
@@ -65,7 +74,14 @@ fun SmartFleetManagementScreen(
             contentPadding = PaddingValues(top = 120.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Fleet Control Panel
+            // NEW: Background Telematics Session Panel - Added at the top for prominence
+            item {
+                TelematicsSessionPanel(
+                    viewModel = sessionViewModel
+                )
+            }
+
+            // Fleet Control Panel - Updated to work alongside session management
             item {
                 FleetControlPanel(
                     isCollecting = isCollecting,
@@ -76,7 +92,8 @@ fun SmartFleetManagementScreen(
                             viewModel.startFleetMonitoring()
                         }
                     },
-                    batteryStats = batteryStats
+                    batteryStats = batteryStats,
+                    sessionState = sessionState
                 )
             }
 
@@ -97,15 +114,6 @@ fun SmartFleetManagementScreen(
                     onViewAllEvents = { viewModel.exportEventReport() }
                 )
             }
-
-//            // Power Management Status
-//            item {
-//                PowerManagementDashboard(
-//                    powerState = powerState,
-//                    batteryStats = batteryStats,
-//                    onOptimizePower = { viewModel.optimizePowerSettings() }
-//                )
-//            }
 
             // Insurance Analytics
             item {
@@ -134,10 +142,7 @@ fun SmartFleetManagementScreen(
             // Navigation to Reports Screen
             item {
                 NavigationCard(
-                    onNavigateToReports = {
-                        // Navigate to reports screen - you'll need to pass navController
-                        // For now, we'll show a placeholder
-                    }
+                    onNavigateToReports = onNavigateToReports
                 )
             }
         }
@@ -148,7 +153,8 @@ fun SmartFleetManagementScreen(
 private fun FleetControlPanel(
     isCollecting: Boolean,
     onToggleCollection: () -> Unit,
-    batteryStats: TelemetriManager.BatteryOptimizationStats?
+    batteryStats: TelemetriManager.BatteryOptimizationStats?,
+    sessionState: SessionState
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -186,6 +192,35 @@ private fun FleetControlPanel(
                         Text(
                             text = if (isCollecting) "Advanced Monitoring Active" else "System Standby",
                             style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    // Session status indicator
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = when (sessionState) {
+                                SessionState.RUNNING -> Icons.Default.PlayCircle
+                                SessionState.PAUSED -> Icons.Default.PauseCircle
+                                SessionState.STOPPED -> Icons.Default.StopCircle
+                                SessionState.ERROR -> Icons.Default.Error
+                            },
+                            contentDescription = null,
+                            tint = when (sessionState) {
+                                SessionState.RUNNING -> Color.Green
+                                SessionState.PAUSED -> Color(0xFFFF9800)
+                                SessionState.STOPPED -> Color.Gray
+                                SessionState.ERROR -> Color.Red
+                            },
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Background Session: ${sessionState.name.lowercase()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -263,14 +298,16 @@ private fun DriverStatusDashboard(
                 ) {
                     // Driver confidence indicator
                     CircularProgressIndicator(
-                        progress = driverState.confidence,
-                        modifier = Modifier.size(60.dp),
-                        color = when {
-                            driverState.confidence > 0.8f -> Color.Green
-                            driverState.confidence > 0.6f -> Color.Yellow
-                            else -> Color.Red
-                        },
-                        strokeWidth = 6.dp
+                    progress = { driverState.confidence },
+                    modifier = Modifier.size(60.dp),
+                    color = when {
+                                                driverState.confidence > 0.8f -> Color.Green
+                                                driverState.confidence > 0.6f -> Color.Yellow
+                                                else -> Color.Red
+                                            },
+                    strokeWidth = 6.dp,
+                    trackColor = ProgressIndicatorDefaults.circularTrackColor,
+                    strokeCap = ProgressIndicatorDefaults.CircularDeterminateStrokeCap,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
